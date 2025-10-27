@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Icon from '@/components/ui/icon';
 import { useToast } from '@/hooks/use-toast';
 
@@ -15,6 +16,7 @@ interface Product {
   price: number;
   image: string;
   salesCount: number;
+  customImage?: string;
 }
 
 interface CartItem extends Product {
@@ -28,6 +30,14 @@ const COFFEE_SIZES = {
   medium: { label: '250 мл', multiplier: 1.3 },
   large: { label: '400 мл', multiplier: 1.6 }
 };
+
+const CATEGORIES = [
+  { id: 'pies', label: '🍽️ Пирожки', emoji: '🍽️' },
+  { id: 'coffee', label: '☕ Кофе и Чай', emoji: '☕' },
+  { id: 'sweets', label: '🍰 Сладкое', emoji: '🍰' },
+  { id: 'kitchen', label: '🍔 Кухня', emoji: '🍔' },
+  { id: 'drinks', label: '🥤 Напитки', emoji: '🥤' }
+];
 
 const INITIAL_PRODUCTS: Product[] = [
   { id: '1', name: 'Пирожок с капустой', category: 'pies', price: 50, image: '🥟', salesCount: 0 },
@@ -84,17 +94,47 @@ const INITIAL_PRODUCTS: Product[] = [
 
 const Index = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
+  const [sessionDuration, setSessionDuration] = useState('00:00:00');
   const [password, setPassword] = useState('');
   const [cart, setCart] = useState<CartItem[]>([]);
-  const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
+  const [products, setProducts] = useState<Product[]>(() => {
+    const saved = localStorage.getItem('bakery-products');
+    return saved ? JSON.parse(saved) : INITIAL_PRODUCTS;
+  });
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'pies' | 'coffee' | 'sweets' | 'kitchen' | 'drinks'>('all');
   const [customPriceDialog, setCustomPriceDialog] = useState(false);
   const [customPrice, setCustomPrice] = useState('');
+  const [editProductDialog, setEditProductDialog] = useState(false);
+  const [addProductDialog, setAddProductDialog] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [newProduct, setNewProduct] = useState({ name: '', category: 'pies' as const, price: '', image: '🍞' });
   const { toast } = useToast();
+
+  useEffect(() => {
+    localStorage.setItem('bakery-products', JSON.stringify(products));
+  }, [products]);
+
+  useEffect(() => {
+    if (!sessionStartTime) return;
+
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - sessionStartTime;
+      const hours = Math.floor(elapsed / 3600000);
+      const minutes = Math.floor((elapsed % 3600000) / 60000);
+      const seconds = Math.floor((elapsed % 60000) / 1000);
+      setSessionDuration(
+        `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
+      );
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [sessionStartTime]);
 
   const handleLogin = () => {
     if (password === '1234') {
       setIsAuthenticated(true);
+      setSessionStartTime(Date.now());
       toast({
         title: "Смена открыта",
         description: "Добро пожаловать в систему учёта",
@@ -106,6 +146,12 @@ const Index = () => {
         variant: "destructive"
       });
     }
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setSessionStartTime(null);
+    setSessionDuration('00:00:00');
   };
 
   const addToCart = (product: Product, coffeeSize?: 'small' | 'medium' | 'large') => {
@@ -219,6 +265,69 @@ const Index = () => {
     });
   };
 
+  const handleEditProduct = (product: Product) => {
+    setEditingProduct({ ...product });
+    setEditProductDialog(true);
+  };
+
+  const saveProductEdit = () => {
+    if (!editingProduct) return;
+
+    setProducts(products.map(p => p.id === editingProduct.id ? editingProduct : p));
+    setEditProductDialog(false);
+    setEditingProduct(null);
+    
+    toast({
+      title: "Товар обновлен",
+      description: "Изменения сохранены",
+    });
+  };
+
+  const handleAddProduct = () => {
+    if (!newProduct.name || !newProduct.price) {
+      toast({
+        title: "Ошибка",
+        description: "Заполните все поля",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const product: Product = {
+      id: `product-${Date.now()}`,
+      name: newProduct.name,
+      category: newProduct.category,
+      price: parseFloat(newProduct.price),
+      image: newProduct.image,
+      salesCount: 0
+    };
+
+    setProducts([...products, product]);
+    setNewProduct({ name: '', category: 'pies', price: '', image: '🍞' });
+    setAddProductDialog(false);
+    
+    toast({
+      title: "Товар добавлен",
+      description: `${product.name} добавлен в каталог`,
+    });
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const result = reader.result as string;
+      if (isEdit && editingProduct) {
+        setEditingProduct({ ...editingProduct, customImage: result, image: '' });
+      } else {
+        setNewProduct({ ...newProduct, customImage: result, image: '' });
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   const filteredProducts = selectedCategory === 'all' 
     ? products 
     : products.filter(p => p.category === selectedCategory);
@@ -270,16 +379,98 @@ const Index = () => {
       <div className="absolute inset-0 opacity-5 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik0zNiAxOGMzLjMxNCAwIDYgMi42ODYgNiA2cy0yLjY4NiA2LTYgNi02LTIuNjg2LTYtNiAyLjY4Ni02IDYtNiIgc3Ryb2tlPSIjZmZmIiBzdHJva2Utd2lkdGg9IjIiLz48L2c+PC9zdmc+')]"></div>
 
       <header className="bg-[#2a2018]/80 backdrop-blur-sm border-b border-[#d4a574]/20 sticky top-0 z-40">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
             <div className="text-4xl">🥖</div>
             <div>
               <h1 className="text-2xl font-serif font-bold text-[#d4a574]">Хлеб Бабушкин</h1>
-              <p className="text-sm text-[#e8d5b7]/70">Учёт продаж</p>
+              <p className="text-sm text-[#e8d5b7]/70">Смена: {sessionDuration}</p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
+            <Dialog open={addProductDialog} onOpenChange={setAddProductDialog}>
+              <DialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="bg-transparent border-[#d4a574]/40 text-[#d4a574] hover:bg-[#d4a574]/10"
+                >
+                  <Icon name="Plus" className="mr-2 h-4 w-4" />
+                  Товар
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="bg-[#2a2018] border-[#d4a574]/30">
+                <DialogHeader>
+                  <DialogTitle className="text-[#d4a574] font-serif">Добавить товар</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-[#e8d5b7]">Название</Label>
+                    <Input
+                      value={newProduct.name}
+                      onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
+                      className="bg-[#1a1410] border-[#d4a574]/30 text-[#e8d5b7]"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[#e8d5b7]">Категория</Label>
+                    <Select value={newProduct.category} onValueChange={(v: any) => setNewProduct({ ...newProduct, category: v })}>
+                      <SelectTrigger className="bg-[#1a1410] border-[#d4a574]/30 text-[#e8d5b7]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-[#2a2018] border-[#d4a574]/30">
+                        {CATEGORIES.map(cat => (
+                          <SelectItem key={cat.id} value={cat.id} className="text-[#e8d5b7]">
+                            {cat.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-[#e8d5b7]">Цена (₽)</Label>
+                    <Input
+                      type="number"
+                      value={newProduct.price}
+                      onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
+                      className="bg-[#1a1410] border-[#d4a574]/30 text-[#e8d5b7]"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-[#e8d5b7]">Эмодзи или фото</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        value={newProduct.image}
+                        onChange={(e) => setNewProduct({ ...newProduct, image: e.target.value })}
+                        placeholder="🍞"
+                        className="bg-[#1a1410] border-[#d4a574]/30 text-[#e8d5b7] flex-1"
+                      />
+                      <Input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleImageUpload(e, false)}
+                        className="hidden"
+                        id="new-image-upload"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => document.getElementById('new-image-upload')?.click()}
+                        className="border-[#d4a574]/40 text-[#d4a574]"
+                      >
+                        <Icon name="Upload" className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button onClick={handleAddProduct} className="bg-[#d4a574] hover:bg-[#c19563] text-[#1a1410]">
+                    Добавить
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
             <Button
               variant="outline"
               onClick={exportSales}
@@ -290,7 +481,7 @@ const Index = () => {
             </Button>
             <Button
               variant="outline"
-              onClick={() => setIsAuthenticated(false)}
+              onClick={handleLogout}
               className="bg-transparent border-[#d4a574]/40 text-[#d4a574] hover:bg-[#d4a574]/10"
             >
               <Icon name="LogOut" className="h-4 w-4" />
@@ -300,41 +491,69 @@ const Index = () => {
       </header>
 
       <div className="container mx-auto px-4 py-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+          <Card
+            onClick={() => setSelectedCategory('all')}
+            className={`cursor-pointer transition-all hover:scale-105 ${
+              selectedCategory === 'all'
+                ? 'bg-[#d4a574] border-[#d4a574]'
+                : 'bg-[#2a2018]/80 border-[#d4a574]/20 hover:border-[#d4a574]/50'
+            }`}
+          >
+            <CardContent className="p-4 text-center">
+              <div className="text-3xl mb-2">📦</div>
+              <p className={`font-semibold ${selectedCategory === 'all' ? 'text-[#1a1410]' : 'text-[#e8d5b7]'}`}>
+                Все товары
+              </p>
+            </CardContent>
+          </Card>
+
+          {CATEGORIES.map((category) => (
+            <Card
+              key={category.id}
+              onClick={() => setSelectedCategory(category.id as any)}
+              className={`cursor-pointer transition-all hover:scale-105 ${
+                selectedCategory === category.id
+                  ? 'bg-[#d4a574] border-[#d4a574]'
+                  : 'bg-[#2a2018]/80 border-[#d4a574]/20 hover:border-[#d4a574]/50'
+              }`}
+            >
+              <CardContent className="p-4 text-center">
+                <div className="text-3xl mb-2">{category.emoji}</div>
+                <p className={`font-semibold text-sm ${selectedCategory === category.id ? 'text-[#1a1410]' : 'text-[#e8d5b7]'}`}>
+                  {category.label.replace(/[🍽️☕🍰🍔🥤]\s*/, '')}
+                </p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
-            <Tabs value={selectedCategory} onValueChange={(v) => setSelectedCategory(v as any)} className="mb-6">
-              <TabsList className="bg-[#2a2018]/80 border border-[#d4a574]/20 p-1 flex-wrap h-auto">
-                <TabsTrigger value="all" className="data-[state=active]:bg-[#d4a574] data-[state=active]:text-[#1a1410]">
-                  Все
-                </TabsTrigger>
-                <TabsTrigger value="pies" className="data-[state=active]:bg-[#d4a574] data-[state=active]:text-[#1a1410]">
-                  🍽️ Пирожки
-                </TabsTrigger>
-                <TabsTrigger value="coffee" className="data-[state=active]:bg-[#d4a574] data-[state=active]:text-[#1a1410]">
-                  ☕ Кофе
-                </TabsTrigger>
-                <TabsTrigger value="sweets" className="data-[state=active]:bg-[#d4a574] data-[state=active]:text-[#1a1410]">
-                  🍰 Сладкое
-                </TabsTrigger>
-                <TabsTrigger value="kitchen" className="data-[state=active]:bg-[#d4a574] data-[state=active]:text-[#1a1410]">
-                  🍔 Кухня
-                </TabsTrigger>
-                <TabsTrigger value="drinks" className="data-[state=active]:bg-[#d4a574] data-[state=active]:text-[#1a1410]">
-                  🥤 Напитки
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {filteredProducts.map((product) => (
                 <Card
                   key={product.id}
-                  className="bg-[#2a2018]/80 backdrop-blur-sm border-[#d4a574]/20 hover:border-[#d4a574]/50 transition-all hover:scale-105 cursor-pointer animate-fade-in group"
+                  className="bg-[#2a2018]/80 backdrop-blur-sm border-[#d4a574]/20 hover:border-[#d4a574]/50 transition-all hover:scale-105 animate-fade-in group relative"
                 >
                   <CardContent className="p-4">
-                    <div className="text-5xl mb-3 text-center group-hover:scale-110 transition-transform">
-                      {product.image}
-                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => handleEditProduct(product)}
+                      className="absolute top-2 right-2 h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-[#d4a574] hover:bg-[#d4a574]/20"
+                    >
+                      <Icon name="Pencil" className="h-4 w-4" />
+                    </Button>
+
+                    {product.customImage ? (
+                      <img src={product.customImage} alt={product.name} className="w-full h-20 object-cover rounded mb-3" />
+                    ) : (
+                      <div className="text-5xl mb-3 text-center group-hover:scale-110 transition-transform">
+                        {product.image}
+                      </div>
+                    )}
+
                     <h3 className="font-serif text-lg text-[#e8d5b7] mb-2 text-center min-h-[3.5rem] flex items-center justify-center">
                       {product.name}
                     </h3>
@@ -476,6 +695,68 @@ const Index = () => {
           </div>
         </div>
       </div>
+
+      <Dialog open={editProductDialog} onOpenChange={setEditProductDialog}>
+        <DialogContent className="bg-[#2a2018] border-[#d4a574]/30">
+          <DialogHeader>
+            <DialogTitle className="text-[#d4a574] font-serif">Редактировать товар</DialogTitle>
+          </DialogHeader>
+          {editingProduct && (
+            <div className="space-y-4">
+              <div>
+                <Label className="text-[#e8d5b7]">Название</Label>
+                <Input
+                  value={editingProduct.name}
+                  onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
+                  className="bg-[#1a1410] border-[#d4a574]/30 text-[#e8d5b7]"
+                />
+              </div>
+              <div>
+                <Label className="text-[#e8d5b7]">Цена (₽)</Label>
+                <Input
+                  type="number"
+                  value={editingProduct.price}
+                  onChange={(e) => setEditingProduct({ ...editingProduct, price: parseFloat(e.target.value) })}
+                  className="bg-[#1a1410] border-[#d4a574]/30 text-[#e8d5b7]"
+                />
+              </div>
+              <div>
+                <Label className="text-[#e8d5b7]">Эмодзи или фото</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={editingProduct.image}
+                    onChange={(e) => setEditingProduct({ ...editingProduct, image: e.target.value })}
+                    className="bg-[#1a1410] border-[#d4a574]/30 text-[#e8d5b7] flex-1"
+                  />
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleImageUpload(e, true)}
+                    className="hidden"
+                    id="edit-image-upload"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => document.getElementById('edit-image-upload')?.click()}
+                    className="border-[#d4a574]/40 text-[#d4a574]"
+                  >
+                    <Icon name="Upload" className="h-4 w-4" />
+                  </Button>
+                </div>
+                {editingProduct.customImage && (
+                  <img src={editingProduct.customImage} alt="Preview" className="mt-2 w-20 h-20 object-cover rounded" />
+                )}
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button onClick={saveProductEdit} className="bg-[#d4a574] hover:bg-[#c19563] text-[#1a1410]">
+              Сохранить
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
