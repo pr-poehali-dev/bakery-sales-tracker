@@ -350,9 +350,16 @@ const Index = () => {
     reader.readAsDataURL(file);
   };
 
+  const [showCategoryHome, setShowCategoryHome] = useState(true);
+
   const filteredProducts = selectedCategory === 'all' 
     ? products 
     : products.filter(p => p.category === selectedCategory);
+
+  const handleCategorySelect = (category: typeof selectedCategory) => {
+    setSelectedCategory(category);
+    setShowCategoryHome(false);
+  };
 
   if (!isAuthenticated) {
     return (
@@ -513,44 +520,84 @@ const Index = () => {
       </header>
 
       <div className="container mx-auto px-4 py-6">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
-          <Card
-            onClick={() => setSelectedCategory('all')}
-            className={`cursor-pointer transition-all hover:scale-105 ${
-              selectedCategory === 'all'
-                ? 'bg-[#d4a574] border-[#d4a574]'
-                : 'bg-[#2a2018]/80 border-[#d4a574]/20 hover:border-[#d4a574]/50'
-            }`}
-          >
-            <CardContent className="p-4 text-center">
-              <div className="text-3xl mb-2">📦</div>
-              <p className={`font-semibold ${selectedCategory === 'all' ? 'text-[#1a1410]' : 'text-[#e8d5b7]'}`}>
-                Все товары
-              </p>
-            </CardContent>
-          </Card>
+        {showCategoryHome ? (
+          <div className="min-h-[80vh] flex flex-col items-center justify-center">
+            <div className="text-center mb-12 animate-fade-in">
+              <div className="text-7xl mb-4">🥖</div>
+              <h2 className="text-4xl font-serif font-bold text-[#d4a574] mb-2">Выберите категорию</h2>
+              <p className="text-[#e8d5b7]/70">Нажмите на категорию для начала работы</p>
+            </div>
 
-          {CATEGORIES.map((category) => (
-            <Card
-              key={category.id}
-              onClick={() => setSelectedCategory(category.id as any)}
-              className={`cursor-pointer transition-all hover:scale-105 ${
-                selectedCategory === category.id
-                  ? 'bg-[#d4a574] border-[#d4a574]'
-                  : 'bg-[#2a2018]/80 border-[#d4a574]/20 hover:border-[#d4a574]/50'
-              }`}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full max-w-5xl">
+              {CATEGORIES.map((category, index) => (
+                <Card
+                  key={category.id}
+                  onClick={() => handleCategorySelect(category.id as any)}
+                  className="bg-[#2a2018]/90 border-[#d4a574]/30 hover:border-[#d4a574] cursor-pointer transition-all hover:scale-105 animate-fade-in group"
+                  style={{ animationDelay: `${index * 100}ms` }}
+                >
+                  <CardContent className="p-8 text-center">
+                    <div className="text-7xl mb-4 group-hover:scale-110 transition-transform">{category.emoji}</div>
+                    <h3 className="text-2xl font-serif font-bold text-[#d4a574] mb-2">
+                      {category.label.replace(/[🍽️☕🍰🍔🥤]\s*/, '')}
+                    </h3>
+                    <Badge variant="outline" className="border-[#d4a574]/40 text-[#d4a574]">
+                      {products.filter(p => p.category === category.id).length} товаров
+                    </Badge>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            <Button
+              onClick={() => handleCategorySelect('all')}
+              variant="outline"
+              className="mt-8 border-[#d4a574]/40 text-[#d4a574] hover:bg-[#d4a574]/10 px-8 py-6 text-lg"
             >
-              <CardContent className="p-4 text-center">
-                <div className="text-3xl mb-2">{category.emoji}</div>
-                <p className={`font-semibold text-sm ${selectedCategory === category.id ? 'text-[#1a1410]' : 'text-[#e8d5b7]'}`}>
-                  {category.label.replace(/[🍽️☕🍰🍔🥤]\s*/, '')}
-                </p>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+              <Icon name="Package" className="mr-2 h-5 w-5" />
+              Показать все товары
+            </Button>
+          </div>
+        ) : (
+          <>
+            <div className="flex items-center gap-3 mb-6">
+              <Button
+                onClick={() => setShowCategoryHome(true)}
+                variant="outline"
+                className="border-[#d4a574]/40 text-[#d4a574] hover:bg-[#d4a574]/10"
+              >
+                <Icon name="ArrowLeft" className="mr-2 h-4 w-4" />
+                К категориям
+              </Button>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="flex gap-2 flex-wrap flex-1">
+                <Button
+                  onClick={() => setSelectedCategory('all')}
+                  variant={selectedCategory === 'all' ? 'default' : 'outline'}
+                  className={selectedCategory === 'all' 
+                    ? 'bg-[#d4a574] hover:bg-[#c19563] text-[#1a1410]'
+                    : 'border-[#d4a574]/40 text-[#d4a574] hover:bg-[#d4a574]/10'
+                  }
+                >
+                  Все
+                </Button>
+                {CATEGORIES.map((category) => (
+                  <Button
+                    key={category.id}
+                    onClick={() => setSelectedCategory(category.id as any)}
+                    variant={selectedCategory === category.id ? 'default' : 'outline'}
+                    className={selectedCategory === category.id
+                      ? 'bg-[#d4a574] hover:bg-[#c19563] text-[#1a1410]'
+                      : 'border-[#d4a574]/40 text-[#d4a574] hover:bg-[#d4a574]/10'
+                    }
+                  >
+                    {category.emoji} {category.label.replace(/[🍽️☕🍰🍔🥤]\s*/, '')}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {filteredProducts.map((product) => (
@@ -716,6 +763,8 @@ const Index = () => {
             </Card>
           </div>
         </div>
+        </>
+        )}
       </div>
 
       <Dialog open={editProductDialog} onOpenChange={setEditProductDialog}>
