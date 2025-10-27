@@ -93,8 +93,14 @@ const INITIAL_PRODUCTS: Product[] = [
 ];
 
 const Index = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    const saved = localStorage.getItem('bakery-session-active');
+    return saved === 'true';
+  });
+  const [sessionStartTime, setSessionStartTime] = useState<number | null>(() => {
+    const saved = localStorage.getItem('bakery-session-start');
+    return saved ? parseInt(saved) : null;
+  });
   const [sessionDuration, setSessionDuration] = useState('00:00:00');
   const [password, setPassword] = useState('');
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -114,6 +120,16 @@ const Index = () => {
   useEffect(() => {
     localStorage.setItem('bakery-products', JSON.stringify(products));
   }, [products]);
+
+  useEffect(() => {
+    localStorage.setItem('bakery-session-active', isAuthenticated.toString());
+  }, [isAuthenticated]);
+
+  useEffect(() => {
+    if (sessionStartTime) {
+      localStorage.setItem('bakery-session-start', sessionStartTime.toString());
+    }
+  }, [sessionStartTime]);
 
   useEffect(() => {
     if (!sessionStartTime) return;
@@ -152,6 +168,12 @@ const Index = () => {
     setIsAuthenticated(false);
     setSessionStartTime(null);
     setSessionDuration('00:00:00');
+    localStorage.removeItem('bakery-session-active');
+    localStorage.removeItem('bakery-session-start');
+    toast({
+      title: "Смена закрыта",
+      description: "До встречи!",
+    });
   };
 
   const addToCart = (product: Product, coffeeSize?: 'small' | 'medium' | 'large') => {
