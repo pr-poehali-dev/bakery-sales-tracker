@@ -109,6 +109,7 @@ const Index = () => {
     return saved ? JSON.parse(saved) : INITIAL_PRODUCTS;
   });
   const [selectedCategory, setSelectedCategory] = useState<'all' | 'pies' | 'coffee' | 'sweets' | 'kitchen' | 'drinks'>('all');
+  const [showCategoryHome, setShowCategoryHome] = useState(true);
   const [customPriceDialog, setCustomPriceDialog] = useState(false);
   const [customPrice, setCustomPrice] = useState('');
   const [editProductDialog, setEditProductDialog] = useState(false);
@@ -350,16 +351,14 @@ const Index = () => {
     reader.readAsDataURL(file);
   };
 
-  const [showCategoryHome, setShowCategoryHome] = useState(true);
-
-  const filteredProducts = selectedCategory === 'all' 
-    ? products 
-    : products.filter(p => p.category === selectedCategory);
-
   const handleCategorySelect = (category: typeof selectedCategory) => {
     setSelectedCategory(category);
     setShowCategoryHome(false);
   };
+
+  const filteredProducts = selectedCategory === 'all' 
+    ? products 
+    : products.filter(p => p.category === selectedCategory);
 
   if (!isAuthenticated) {
     return (
