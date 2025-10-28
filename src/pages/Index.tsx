@@ -677,7 +677,9 @@ const Index = () => {
             <div className="flex items-center gap-3">
               <div className="text-5xl">🥖</div>
               <div>
-                <h1 className="text-3xl font-bold text-white">Хлеб Бабушкин</h1>
+                <h1 className="text-3xl font-bold text-white">
+                  ХЛЕБНИК
+                </h1>
                 <div className="flex items-center gap-3">
                   <p className="text-sm text-gray-400 flex items-center gap-1">
                     <Icon name="Clock" size={14} />
@@ -956,7 +958,9 @@ const Index = () => {
             {showCategoryHome ? (
               <div className="animate-slide-up">
                 <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-3xl font-bold text-white">Категории</h2>
+                  <h2 className="text-3xl font-bold text-white">
+                    Вся наша <span className="text-[#FF6B4A]">продукция</span> в одном каталоге
+                  </h2>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   {categories.map((cat, index) => (
