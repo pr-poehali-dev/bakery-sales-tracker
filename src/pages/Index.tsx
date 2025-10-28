@@ -591,27 +591,36 @@ const Index = () => {
                   <DialogTitle className="text-primary text-xl">Экспорт отчета в Telegram</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
-                  <div>
-                    <Label className="text-foreground">Bot Token</Label>
-                    <Input
-                      value={telegramBotToken}
-                      onChange={(e) => setTelegramBotToken(e.target.value)}
-                      placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
-                      className="bg-background/50 border-primary/30 text-foreground mt-1"
-                    />
-                  </div>
-                  <div>
-                    <Label className="text-foreground">Chat ID</Label>
-                    <Input
-                      value={telegramChatId}
-                      onChange={(e) => setTelegramChatId(e.target.value)}
-                      placeholder="123456789"
-                      className="bg-background/50 border-primary/30 text-foreground mt-1"
-                    />
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Создайте бота через @BotFather и получите Chat ID через @userinfobot
-                  </p>
+                  {userRole === 'admin' && (
+                    <>
+                      <div>
+                        <Label className="text-foreground">Bot Token</Label>
+                        <Input
+                          value={telegramBotToken}
+                          onChange={(e) => setTelegramBotToken(e.target.value)}
+                          placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+                          className="bg-background/50 border-primary/30 text-foreground mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-foreground">Chat ID</Label>
+                        <Input
+                          value={telegramChatId}
+                          onChange={(e) => setTelegramChatId(e.target.value)}
+                          placeholder="123456789"
+                          className="bg-background/50 border-primary/30 text-foreground mt-1"
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Создайте бота через @BotFather и получите Chat ID через @userinfobot
+                      </p>
+                    </>
+                  )}
+                  {userRole === 'cashier' && (
+                    <p className="text-sm text-muted-foreground">
+                      Отчет будет отправлен в Telegram по настройкам администратора
+                    </p>
+                  )}
                 </div>
                 <DialogFooter>
                   <Button onClick={exportToTelegram} className="bg-blue-500 hover:bg-blue-600 text-white">
