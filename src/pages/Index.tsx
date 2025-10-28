@@ -6,7 +6,6 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import Icon from '@/components/ui/icon';
 import { useToast } from '@/hooks/use-toast';
 
@@ -39,12 +38,6 @@ interface Cart {
   name: string;
   items: CartItem[];
   createdAt: number;
-}
-
-interface User {
-  username: string;
-  password: string;
-  role: UserRole;
 }
 
 const COFFEE_SIZES = {
@@ -114,20 +107,17 @@ const INITIAL_PRODUCTS: Product[] = [
   { id: '46', name: 'Вода негазированная святой источник', category: 'drinks', price: 50, image: '💧', salesCount: 0 },
 ];
 
+const USERS = {
+  admin: { password: 'admin123', role: 'admin' as UserRole },
+  cashier: { password: '1234', role: 'cashier' as UserRole }
+};
+
 const Index = () => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [users, setUsers] = useState<User[]>(() => {
-    const saved = localStorage.getItem('bakery-users');
-    return saved ? JSON.parse(saved) : [
-      { username: 'admin', password: 'admin123', role: 'admin' as UserRole },
-      { username: 'cashier', password: '1234', role: 'cashier' as UserRole }
-    ];
-  });
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
     const saved = localStorage.getItem('bakery-session-active');
     return saved === 'true';
   });
-  const [currentUser, setCurrentUser] = useState<string>('');
   const [userRole, setUserRole] = useState<UserRole>(() => {
     const saved = localStorage.getItem('bakery-user-role');
     return (saved as UserRole) || 'cashier';
@@ -139,9 +129,6 @@ const Index = () => {
   const [sessionDuration, setSessionDuration] = useState('00:00:00');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [registerUsername, setRegisterUsername] = useState('');
-  const [registerPassword, setRegisterPassword] = useState('');
-  const [registerRole, setRegisterRole] = useState<UserRole>('cashier');
   const [carts, setCarts] = useState<Cart[]>([{ id: '1', name: 'Корзина 1', items: [], createdAt: Date.now() }]);
   const [activeCartId, setActiveCartId] = useState('1');
   const [products, setProducts] = useState<Product[]>(() => {
@@ -160,12 +147,8 @@ const Index = () => {
   const [addProductDialog, setAddProductDialog] = useState(false);
   const [addCategoryDialog, setAddCategoryDialog] = useState(false);
   const [exportDialog, setExportDialog] = useState(false);
-  const [telegramBotToken, setTelegramBotToken] = useState(() => {
-    return localStorage.getItem('bakery-telegram-token') || '';
-  });
-  const [telegramChatId, setTelegramChatId] = useState(() => {
-    return localStorage.getItem('bakery-telegram-chat') || '';
-  });
+  const [telegramBotToken, setTelegramBotToken] = useState('');
+  const [telegramChatId, setTelegramChatId] = useState('');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [newProduct, setNewProduct] = useState({ name: '', category: 'pies', price: '', image: '🍞', customImage: '' });
   const [newCategory, setNewCategory] = useState({ id: '', label: '', emoji: '📦' });
@@ -185,10 +168,6 @@ const Index = () => {
   useEffect(() => {
     localStorage.setItem('bakery-categories', JSON.stringify(categories));
   }, [categories]);
-
-  useEffect(() => {
-    localStorage.setItem('bakery-users', JSON.stringify(users));
-  }, [users]);
 
   useEffect(() => {
     if (!isAuthenticated || !sessionStartTime) return;
@@ -229,12 +208,11 @@ const Index = () => {
   };
 
   const handleLogin = () => {
-    const user = users.find(u => u.username === username && u.password === password);
-    if (user) {
+    const user = USERS[username as keyof typeof USERS];
+    if (user && user.password === password) {
       const now = Date.now();
       setIsAuthenticated(true);
       setUserRole(user.role);
-      setCurrentUser(user.username);
       setSessionStartTime(now);
       localStorage.setItem('bakery-session-active', 'true');
       localStorage.setItem('bakery-user-role', user.role);
@@ -246,30 +224,6 @@ const Index = () => {
     } else {
       toast({ title: 'Неверный логин или пароль', variant: 'destructive' });
     }
-  };
-
-  const handleRegister = () => {
-    if (!registerUsername || !registerPassword) {
-      toast({ title: 'Заполните все поля', variant: 'destructive' });
-      return;
-    }
-    
-    if (users.find(u => u.username === registerUsername)) {
-      toast({ title: 'Пользователь уже существует', variant: 'destructive' });
-      return;
-    }
-
-    const newUser: User = {
-      username: registerUsername,
-      password: registerPassword,
-      role: registerRole
-    };
-
-    setUsers([...users, newUser]);
-    toast({ title: 'Регистрация успешна!', description: 'Теперь можете войти' });
-    setRegisterUsername('');
-    setRegisterPassword('');
-    setRegisterRole('cashier');
   };
 
   const handleLogout = () => {
@@ -287,7 +241,6 @@ const Index = () => {
     setIsAuthenticated(false);
     setSessionStartTime(null);
     setUserRole('cashier');
-    setCurrentUser('');
     localStorage.removeItem('bakery-session-active');
     localStorage.removeItem('bakery-user-role');
     localStorage.removeItem('bakery-session-start');
@@ -463,35 +416,16 @@ const Index = () => {
     toast({ title: 'Товар обновлён' });
   };
 
-  const saveTelegramSettings = () => {
-    localStorage.setItem('bakery-telegram-token', telegramBotToken);
-    localStorage.setItem('bakery-telegram-chat', telegramChatId);
-    toast({ title: 'Настройки Telegram сохранены' });
-  };
-
   const exportToTelegram = async () => {
     if (!telegramBotToken || !telegramChatId) {
-      toast({ title: 'Настройте токен бота и Chat ID', variant: 'destructive' });
+      toast({ title: 'Введите токен бота и Chat ID', variant: 'destructive' });
       return;
     }
-
-    const now = new Date();
-    const dateStr = now.toLocaleDateString('ru-RU', { 
-      day: '2-digit', 
-      month: '2-digit', 
-      year: 'numeric' 
-    });
-    const timeStr = now.toLocaleTimeString('ru-RU', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
 
     const totalSales = products.reduce((sum, p) => sum + (p.price * p.salesCount), 0);
     const totalItems = products.reduce((sum, p) => sum + p.salesCount, 0);
     
     let report = `📊 *Отчет о продажах*\n\n`;
-    report += `📅 Дата: ${dateStr} ${timeStr}\n`;
-    report += `👤 Кассир: ${currentUser}\n`;
     report += `⏰ Смена: ${sessionDuration}\n`;
     report += `💰 Общая выручка: ${totalSales}₽\n`;
     report += `📦 Продано товаров: ${totalItems} шт\n\n`;
@@ -552,112 +486,62 @@ const Index = () => {
     ? products 
     : products.filter(p => p.category === selectedCategory);
 
-  const topProducts = [...products].sort((a, b) => b.salesCount - a.salesCount).slice(0, 5);
-  const totalRevenue = products.reduce((sum, p) => sum + (p.price * p.salesCount), 0);
-
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#1a1a1a] relative overflow-hidden">
-        <div className="absolute inset-0 opacity-5">
-          <div className="absolute top-0 left-1/4 w-96 h-96 bg-[#FF6B4A] rounded-full blur-3xl"></div>
-          <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-[#FF6B4A] rounded-full blur-3xl"></div>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0a0b1a] via-[#151628] to-[#1a1b35] relative overflow-hidden">
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-20 left-10 w-64 h-64 bg-primary/30 rounded-full blur-3xl animate-float"></div>
+          <div className="absolute bottom-20 right-10 w-96 h-96 bg-primary/20 rounded-full blur-3xl animate-float" style={{ animationDelay: '1s' }}></div>
         </div>
         
-        <Card className="w-full max-w-md mx-4 bg-[#2a2a2a] border-[#3a3a3a] shadow-2xl">
-          <CardContent className="pt-8 pb-6">
+        <Card className="w-full max-w-md mx-4 bg-card/50 backdrop-blur-xl border-primary/20 shadow-2xl animate-scale-in relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent"></div>
+          <CardContent className="pt-8 pb-6 relative z-10">
             <div className="text-center mb-8">
-              <div className="text-7xl mb-4">🥖</div>
-              <h1 className="text-5xl font-bold text-white mb-2">
-                ХЛЕБНИК
+              <div className="text-7xl mb-4 animate-float">🥖</div>
+              <h1 className="text-5xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent mb-2">
+                Хлеб Бабушкин
               </h1>
-              <p className="text-gray-400">Система учёта продаж</p>
+              <p className="text-muted-foreground">Система учёта продаж</p>
             </div>
 
-            <Tabs defaultValue="login" className="w-full">
-              <TabsList className="grid w-full grid-cols-2 bg-[#3a3a3a]">
-                <TabsTrigger value="login" className="data-[state=active]:bg-[#FF6B4A] data-[state=active]:text-white">
-                  Вход
-                </TabsTrigger>
-                <TabsTrigger value="register" className="data-[state=active]:bg-[#FF6B4A] data-[state=active]:text-white">
-                  Регистрация
-                </TabsTrigger>
-              </TabsList>
+            <div className="space-y-4">
+              <div>
+                <Label className="text-sm text-muted-foreground mb-2 block">Логин</Label>
+                <Input
+                  type="text"
+                  placeholder="admin или cashier"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="bg-background/50 border-primary/30 text-foreground placeholder:text-muted-foreground h-12"
+                />
+              </div>
+              <div>
+                <Label className="text-sm text-muted-foreground mb-2 block">Пароль</Label>
+                <Input
+                  type="password"
+                  placeholder="Введите пароль"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
+                  className="bg-background/50 border-primary/30 text-foreground placeholder:text-muted-foreground h-12"
+                />
+              </div>
+              
+              <Button 
+                onClick={handleLogin}
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold h-12 shadow-lg hover:shadow-primary/50 transition-all"
+              >
+                <Icon name="LogIn" className="mr-2" size={20} />
+                Войти
+              </Button>
+            </div>
 
-              <TabsContent value="login" className="space-y-4 mt-4">
-                <div>
-                  <Label className="text-sm text-gray-400 mb-2 block">Логин</Label>
-                  <Input
-                    type="text"
-                    placeholder="Введите логин"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    className="bg-[#3a3a3a] border-[#4a4a4a] text-white placeholder:text-gray-500 h-12"
-                  />
-                </div>
-                <div>
-                  <Label className="text-sm text-gray-400 mb-2 block">Пароль</Label>
-                  <Input
-                    type="password"
-                    placeholder="Введите пароль"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
-                    className="bg-[#3a3a3a] border-[#4a4a4a] text-white placeholder:text-gray-500 h-12"
-                  />
-                </div>
-                
-                <Button 
-                  onClick={handleLogin}
-                  className="w-full bg-[#FF6B4A] hover:bg-[#ff5a39] text-white font-semibold h-12 shadow-lg"
-                >
-                  <Icon name="LogIn" className="mr-2" size={20} />
-                  Войти
-                </Button>
-              </TabsContent>
-
-              <TabsContent value="register" className="space-y-4 mt-4">
-                <div>
-                  <Label className="text-sm text-gray-400 mb-2 block">Логин</Label>
-                  <Input
-                    type="text"
-                    placeholder="Придумайте логин"
-                    value={registerUsername}
-                    onChange={(e) => setRegisterUsername(e.target.value)}
-                    className="bg-[#3a3a3a] border-[#4a4a4a] text-white placeholder:text-gray-500 h-12"
-                  />
-                </div>
-                <div>
-                  <Label className="text-sm text-gray-400 mb-2 block">Пароль</Label>
-                  <Input
-                    type="password"
-                    placeholder="Придумайте пароль"
-                    value={registerPassword}
-                    onChange={(e) => setRegisterPassword(e.target.value)}
-                    className="bg-[#3a3a3a] border-[#4a4a4a] text-white placeholder:text-gray-500 h-12"
-                  />
-                </div>
-                <div>
-                  <Label className="text-sm text-gray-400 mb-2 block">Роль</Label>
-                  <Select value={registerRole} onValueChange={(v) => setRegisterRole(v as UserRole)}>
-                    <SelectTrigger className="bg-[#3a3a3a] border-[#4a4a4a] text-white h-12">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent className="bg-[#3a3a3a] border-[#4a4a4a]">
-                      <SelectItem value="cashier" className="text-white">💼 Кассир</SelectItem>
-                      <SelectItem value="admin" className="text-white">👑 Администратор</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                
-                <Button 
-                  onClick={handleRegister}
-                  className="w-full bg-[#FF6B4A] hover:bg-[#ff5a39] text-white font-semibold h-12 shadow-lg"
-                >
-                  <Icon name="UserPlus" className="mr-2" size={20} />
-                  Зарегистрироваться
-                </Button>
-              </TabsContent>
-            </Tabs>
+            <div className="mt-6 p-4 bg-primary/10 border border-primary/20 rounded-lg">
+              <p className="text-xs text-muted-foreground mb-2 font-semibold">Тестовые доступы:</p>
+              <p className="text-xs text-muted-foreground">👤 Админ: <span className="text-primary">admin</span> / <span className="text-primary">admin123</span></p>
+              <p className="text-xs text-muted-foreground">💼 Кассир: <span className="text-primary">cashier</span> / <span className="text-primary">1234</span></p>
+            </div>
           </CardContent>
         </Card>
       </div>
@@ -665,288 +549,231 @@ const Index = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[#1a1a1a] relative pb-6">
-      <div className="absolute inset-0 opacity-5 pointer-events-none">
-        <div className="absolute top-0 left-1/4 w-96 h-96 bg-[#FF6B4A] rounded-full blur-3xl animate-float"></div>
-        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-[#FF6B4A] rounded-full blur-3xl animate-float" style={{ animationDelay: '1.5s' }}></div>
+    <div className="min-h-screen bg-gradient-to-br from-[#0a0b1a] via-[#151628] to-[#1a1b35] relative pb-6">
+      <div className="absolute inset-0 opacity-10 pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/30 rounded-full blur-3xl animate-float"></div>
+        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-primary/20 rounded-full blur-3xl animate-float" style={{ animationDelay: '1.5s' }}></div>
       </div>
 
-      <header className="bg-[#2a2a2a] border-b border-[#3a3a3a] sticky top-0 z-40 shadow-lg">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-            <div className="flex items-center gap-3">
-              <div className="text-5xl">🥖</div>
-              <div>
-                <h1 className="text-3xl font-bold text-white">Хлеб Бабушкин</h1>
-                <div className="flex items-center gap-3">
-                  <p className="text-sm text-gray-400 flex items-center gap-1">
-                    <Icon name="Clock" size={14} />
-                    {sessionDuration}
-                  </p>
-                  <Badge variant="outline" className={`${userRole === 'admin' ? 'bg-[#FF6B4A]/20 text-[#FF6B4A] border-[#FF6B4A]/40' : 'bg-gray-600/20 text-gray-300 border-gray-600/40'}`}>
-                    {userRole === 'admin' ? '👑 Администратор' : '💼 Кассир'}
-                  </Badge>
-                  <p className="text-sm text-gray-400">{currentUser}</p>
-                </div>
+      <header className="bg-card/30 backdrop-blur-xl border-b border-primary/20 sticky top-0 z-40 shadow-lg">
+        <div className="container mx-auto px-4 py-4 flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-3">
+            <div className="text-5xl animate-float">🥖</div>
+            <div>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                Хлеб Бабушкин
+              </h1>
+              <div className="flex items-center gap-3">
+                <p className="text-sm text-muted-foreground flex items-center gap-1">
+                  <Icon name="Clock" size={14} />
+                  {sessionDuration}
+                </p>
+                <Badge variant="outline" className={`${userRole === 'admin' ? 'bg-primary/20 text-primary border-primary/40' : 'bg-muted/20 text-muted-foreground border-muted/40'}`}>
+                  {userRole === 'admin' ? '👑 Администратор' : '💼 Кассир'}
+                </Badge>
               </div>
-            </div>
-
-            <div className="flex items-center gap-2 flex-wrap">
-              <Dialog open={exportDialog} onOpenChange={setExportDialog}>
-                <DialogTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="bg-blue-500/10 border-blue-500/40 text-blue-400 hover:bg-blue-500/20"
-                  >
-                    <Icon name="Send" className="mr-2 h-4 w-4" />
-                    Telegram
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="bg-[#2a2a2a] border-[#3a3a3a] max-w-lg">
-                  <DialogHeader>
-                    <DialogTitle className="text-[#FF6B4A] text-xl">Экспорт отчета в Telegram</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    {userRole === 'admin' && (
-                      <>
-                        <div>
-                          <Label className="text-white">Bot Token</Label>
-                          <Input
-                            value={telegramBotToken}
-                            onChange={(e) => setTelegramBotToken(e.target.value)}
-                            placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
-                            className="bg-[#3a3a3a] border-[#4a4a4a] text-white mt-1"
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-white">Chat ID</Label>
-                          <Input
-                            value={telegramChatId}
-                            onChange={(e) => setTelegramChatId(e.target.value)}
-                            placeholder="123456789"
-                            className="bg-[#3a3a3a] border-[#4a4a4a] text-white mt-1"
-                          />
-                        </div>
-                        <p className="text-xs text-gray-400">
-                          Создайте бота через @BotFather и получите Chat ID через @userinfobot
-                        </p>
-                        <Button onClick={saveTelegramSettings} variant="outline" className="w-full border-[#FF6B4A]/40 text-[#FF6B4A] hover:bg-[#FF6B4A]/10">
-                          <Icon name="Save" className="mr-2" size={16} />
-                          Сохранить настройки
-                        </Button>
-                      </>
-                    )}
-                    {userRole === 'cashier' && (
-                      <p className="text-sm text-gray-400">
-                        Отчет будет отправлен в Telegram по настройкам администратора
-                      </p>
-                    )}
-                  </div>
-                  <DialogFooter>
-                    <Button onClick={exportToTelegram} className="bg-blue-500 hover:bg-blue-600 text-white">
-                      <Icon name="Send" className="mr-2" size={16} />
-                      Отправить
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-
-              {userRole === 'admin' && (
-                <>
-                  <Dialog open={addCategoryDialog} onOpenChange={setAddCategoryDialog}>
-                    <DialogTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className="bg-[#FF6B4A]/10 border-[#FF6B4A]/40 text-[#FF6B4A] hover:bg-[#FF6B4A]/20"
-                      >
-                        <Icon name="FolderPlus" className="mr-2 h-4 w-4" />
-                        Категория
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="bg-[#2a2a2a] border-[#3a3a3a] max-w-lg">
-                      <DialogHeader>
-                        <DialogTitle className="text-[#FF6B4A] text-xl">Добавить категорию</DialogTitle>
-                      </DialogHeader>
-                      <div className="space-y-4">
-                        <div>
-                          <Label className="text-white">ID категории (англ.)</Label>
-                          <Input
-                            value={newCategory.id}
-                            onChange={(e) => setNewCategory({ ...newCategory, id: e.target.value.toLowerCase() })}
-                            placeholder="snacks"
-                            className="bg-[#3a3a3a] border-[#4a4a4a] text-white mt-1"
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-white">Название</Label>
-                          <Input
-                            value={newCategory.label}
-                            onChange={(e) => setNewCategory({ ...newCategory, label: e.target.value })}
-                            placeholder="Закуски"
-                            className="bg-[#3a3a3a] border-[#4a4a4a] text-white mt-1"
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-white">Эмодзи</Label>
-                          <Input
-                            value={newCategory.emoji}
-                            onChange={(e) => setNewCategory({ ...newCategory, emoji: e.target.value })}
-                            placeholder="🍿"
-                            className="bg-[#3a3a3a] border-[#4a4a4a] text-white mt-1"
-                          />
-                        </div>
-                      </div>
-                      <DialogFooter>
-                        <Button onClick={addNewCategory} className="bg-[#FF6B4A] hover:bg-[#ff5a39] text-white">
-                          <Icon name="Check" className="mr-2" size={16} />
-                          Добавить
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-
-                  <Dialog open={addProductDialog} onOpenChange={setAddProductDialog}>
-                    <DialogTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className="bg-[#FF6B4A]/10 border-[#FF6B4A]/40 text-[#FF6B4A] hover:bg-[#FF6B4A]/20"
-                      >
-                        <Icon name="Plus" className="mr-2 h-4 w-4" />
-                        Товар
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent className="bg-[#2a2a2a] border-[#3a3a3a] max-w-lg">
-                      <DialogHeader>
-                        <DialogTitle className="text-[#FF6B4A] text-xl">Добавить товар</DialogTitle>
-                      </DialogHeader>
-                      <div className="space-y-4">
-                        <div>
-                          <Label className="text-white">Название</Label>
-                          <Input
-                            value={newProduct.name}
-                            onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
-                            className="bg-[#3a3a3a] border-[#4a4a4a] text-white mt-1"
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-white">Категория</Label>
-                          <Select value={newProduct.category} onValueChange={(v) => setNewProduct({ ...newProduct, category: v })}>
-                            <SelectTrigger className="bg-[#3a3a3a] border-[#4a4a4a] text-white mt-1">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent className="bg-[#2a2a2a] border-[#3a3a3a]">
-                              {categories.map(cat => (
-                                <SelectItem key={cat.id} value={cat.id} className="text-white">
-                                  {cat.label}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <Label className="text-white">Цена (₽)</Label>
-                          <Input
-                            type="number"
-                            value={newProduct.price}
-                            onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
-                            className="bg-[#3a3a3a] border-[#4a4a4a] text-white mt-1"
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-white">Эмодзи</Label>
-                          <Input
-                            value={newProduct.image}
-                            onChange={(e) => setNewProduct({ ...newProduct, image: e.target.value })}
-                            placeholder="🍞"
-                            className="bg-[#3a3a3a] border-[#4a4a4a] text-white mt-1"
-                          />
-                        </div>
-                        <div>
-                          <Label className="text-white">Изображение (опционально)</Label>
-                          <Input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => handleImageUpload(e, false)}
-                            className="bg-[#3a3a3a] border-[#4a4a4a] text-white mt-1"
-                          />
-                          {newProduct.customImage && (
-                            <img src={newProduct.customImage} alt="Preview" className="mt-2 w-20 h-20 object-cover rounded-lg" />
-                          )}
-                        </div>
-                      </div>
-                      <DialogFooter>
-                        <Button onClick={addNewProduct} className="bg-[#FF6B4A] hover:bg-[#ff5a39] text-white">
-                          <Icon name="Check" className="mr-2" size={16} />
-                          Добавить
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-                </>
-              )}
-
-              <Button
-                variant="outline"
-                onClick={handleLogout}
-                className="bg-red-500/10 border-red-500/40 text-red-400 hover:bg-red-500/20"
-              >
-                <Icon name="LogOut" className="mr-2 h-4 w-4" />
-                Выход
-              </Button>
             </div>
           </div>
 
-          {userRole === 'admin' && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Card className="bg-[#3a3a3a] border-[#4a4a4a]">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-gray-400">Выручка</p>
-                      <p className="text-2xl font-bold text-[#FF6B4A]">{totalRevenue}₽</p>
-                    </div>
-                    <Icon name="TrendingUp" size={32} className="text-[#FF6B4A]" />
-                  </div>
-                </CardContent>
-              </Card>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Dialog open={exportDialog} onOpenChange={setExportDialog}>
+              <DialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="bg-blue-500/10 border-blue-500/40 text-blue-400 hover:bg-blue-500/20"
+                >
+                  <Icon name="Send" className="mr-2 h-4 w-4" />
+                  Telegram
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="bg-card/95 backdrop-blur-xl border-primary/30 max-w-lg">
+                <DialogHeader>
+                  <DialogTitle className="text-primary text-xl">Экспорт отчета в Telegram</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  {userRole === 'admin' && (
+                    <>
+                      <div>
+                        <Label className="text-foreground">Bot Token</Label>
+                        <Input
+                          value={telegramBotToken}
+                          onChange={(e) => setTelegramBotToken(e.target.value)}
+                          placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+                          className="bg-background/50 border-primary/30 text-foreground mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-foreground">Chat ID</Label>
+                        <Input
+                          value={telegramChatId}
+                          onChange={(e) => setTelegramChatId(e.target.value)}
+                          placeholder="123456789"
+                          className="bg-background/50 border-primary/30 text-foreground mt-1"
+                        />
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Создайте бота через @BotFather и получите Chat ID через @userinfobot
+                      </p>
+                    </>
+                  )}
+                  {userRole === 'cashier' && (
+                    <p className="text-sm text-muted-foreground">
+                      Отчет будет отправлен в Telegram по настройкам администратора
+                    </p>
+                  )}
+                </div>
+                <DialogFooter>
+                  <Button onClick={exportToTelegram} className="bg-blue-500 hover:bg-blue-600 text-white">
+                    <Icon name="Send" className="mr-2" size={16} />
+                    Отправить
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
 
-              <Card className="bg-[#3a3a3a] border-[#4a4a4a]">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-gray-400">Товаров</p>
-                      <p className="text-2xl font-bold text-white">{products.length}</p>
+            {userRole === 'admin' && (
+              <>
+                <Dialog open={addCategoryDialog} onOpenChange={setAddCategoryDialog}>
+                  <DialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="bg-primary/10 border-primary/40 text-primary hover:bg-primary/20"
+                    >
+                      <Icon name="FolderPlus" className="mr-2 h-4 w-4" />
+                      Категория
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="bg-card/95 backdrop-blur-xl border-primary/30 max-w-lg">
+                    <DialogHeader>
+                      <DialogTitle className="text-primary text-xl">Добавить категорию</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label className="text-foreground">ID категории (англ.)</Label>
+                        <Input
+                          value={newCategory.id}
+                          onChange={(e) => setNewCategory({ ...newCategory, id: e.target.value.toLowerCase() })}
+                          placeholder="snacks"
+                          className="bg-background/50 border-primary/30 text-foreground mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-foreground">Название</Label>
+                        <Input
+                          value={newCategory.label}
+                          onChange={(e) => setNewCategory({ ...newCategory, label: e.target.value })}
+                          placeholder="Закуски"
+                          className="bg-background/50 border-primary/30 text-foreground mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-foreground">Эмодзи</Label>
+                        <Input
+                          value={newCategory.emoji}
+                          onChange={(e) => setNewCategory({ ...newCategory, emoji: e.target.value })}
+                          placeholder="🍿"
+                          className="bg-background/50 border-primary/30 text-foreground mt-1"
+                        />
+                      </div>
                     </div>
-                    <Icon name="Package" size={32} className="text-blue-400" />
-                  </div>
-                </CardContent>
-              </Card>
+                    <DialogFooter>
+                      <Button onClick={addNewCategory} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                        <Icon name="Check" className="mr-2" size={16} />
+                        Добавить
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
 
-              <Card className="bg-[#3a3a3a] border-[#4a4a4a]">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-gray-400">Продано</p>
-                      <p className="text-2xl font-bold text-white">{products.reduce((sum, p) => sum + p.salesCount, 0)}</p>
+                <Dialog open={addProductDialog} onOpenChange={setAddProductDialog}>
+                  <DialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="bg-primary/10 border-primary/40 text-primary hover:bg-primary/20"
+                    >
+                      <Icon name="Plus" className="mr-2 h-4 w-4" />
+                      Товар
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="bg-card/95 backdrop-blur-xl border-primary/30 max-w-lg">
+                    <DialogHeader>
+                      <DialogTitle className="text-primary text-xl">Добавить товар</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label className="text-foreground">Название</Label>
+                        <Input
+                          value={newProduct.name}
+                          onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
+                          className="bg-background/50 border-primary/30 text-foreground mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-foreground">Категория</Label>
+                        <Select value={newProduct.category} onValueChange={(v) => setNewProduct({ ...newProduct, category: v })}>
+                          <SelectTrigger className="bg-background/50 border-primary/30 text-foreground mt-1">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-card border-primary/30">
+                            {categories.map(cat => (
+                              <SelectItem key={cat.id} value={cat.id} className="text-foreground">
+                                {cat.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-foreground">Цена (₽)</Label>
+                        <Input
+                          type="number"
+                          value={newProduct.price}
+                          onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
+                          className="bg-background/50 border-primary/30 text-foreground mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-foreground">Эмодзи</Label>
+                        <Input
+                          value={newProduct.image}
+                          onChange={(e) => setNewProduct({ ...newProduct, image: e.target.value })}
+                          placeholder="🍞"
+                          className="bg-background/50 border-primary/30 text-foreground mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-foreground">Изображение (опционально)</Label>
+                        <Input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleImageUpload(e, false)}
+                          className="bg-background/50 border-primary/30 text-foreground mt-1"
+                        />
+                        {newProduct.customImage && (
+                          <img src={newProduct.customImage} alt="Preview" className="mt-2 w-20 h-20 object-cover rounded-lg" />
+                        )}
+                      </div>
                     </div>
-                    <Icon name="ShoppingCart" size={32} className="text-green-400" />
-                  </div>
-                </CardContent>
-              </Card>
+                    <DialogFooter>
+                      <Button onClick={addNewProduct} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                        <Icon name="Check" className="mr-2" size={16} />
+                        Добавить
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </>
+            )}
 
-              <Card className="bg-[#3a3a3a] border-[#4a4a4a]">
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-gray-400">Категорий</p>
-                      <p className="text-2xl font-bold text-white">{categories.length}</p>
-                    </div>
-                    <Icon name="Folder" size={32} className="text-purple-400" />
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          )}
+            <Button
+              variant="outline"
+              onClick={handleLogout}
+              className="bg-destructive/10 border-destructive/40 text-destructive hover:bg-destructive/20"
+            >
+              <Icon name="LogOut" className="mr-2 h-4 w-4" />
+              Выход
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -956,20 +783,20 @@ const Index = () => {
             {showCategoryHome ? (
               <div className="animate-slide-up">
                 <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-3xl font-bold text-white">
-                    Вся наша <span className="text-[#FF6B4A]">продукция</span> в одном каталоге
+                  <h2 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                    Выберите категорию
                   </h2>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   {categories.map((cat, index) => (
                     <Card 
                       key={cat.id}
-                      className="cursor-pointer bg-[#2a2a2a] border-[#3a3a3a] hover:border-[#FF6B4A]/50 hover:bg-[#3a3a3a] transition-all group hover:shadow-lg hover:shadow-[#FF6B4A]/20 animate-scale-in relative"
+                      className="cursor-pointer bg-card/50 backdrop-blur-sm border-primary/20 hover:border-primary/50 hover:bg-card/70 transition-all group hover:shadow-lg hover:shadow-primary/20 animate-scale-in relative"
                       style={{ animationDelay: `${index * 0.1}s` }}
                     >
                       <CardContent className="p-8 text-center" onClick={() => handleCategorySelect(cat.id)}>
                         <div className="text-6xl mb-4 group-hover:scale-110 transition-transform">{cat.emoji}</div>
-                        <h3 className="font-semibold text-lg text-white group-hover:text-[#FF6B4A] transition-colors">
+                        <h3 className="font-semibold text-lg text-foreground group-hover:text-primary transition-colors">
                           {cat.label.replace(cat.emoji + ' ', '')}
                         </h3>
                       </CardContent>
@@ -981,7 +808,7 @@ const Index = () => {
                             e.stopPropagation();
                             deleteCategory(cat.id);
                           }}
-                          className="absolute top-2 right-2 text-red-400 hover:text-red-300"
+                          className="absolute top-2 right-2 text-destructive hover:text-destructive/80"
                         >
                           <Icon name="Trash2" size={14} />
                         </Button>
@@ -993,13 +820,13 @@ const Index = () => {
             ) : (
               <div className="animate-slide-up">
                 <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-3xl font-bold text-white">
+                  <h2 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
                     {selectedCategory === 'all' ? 'Все товары' : categories.find(c => c.id === selectedCategory)?.label}
                   </h2>
                   <Button 
                     variant="outline"
                     onClick={() => setShowCategoryHome(true)}
-                    className="bg-[#FF6B4A]/10 border-[#FF6B4A]/40 text-[#FF6B4A] hover:bg-[#FF6B4A]/20"
+                    className="bg-primary/10 border-primary/40 text-primary hover:bg-primary/20"
                   >
                     <Icon name="ArrowLeft" className="mr-2 h-4 w-4" />
                     Категории
@@ -1010,7 +837,7 @@ const Index = () => {
                   {filteredProducts.map((product, index) => (
                     <Card 
                       key={product.id}
-                      className="bg-[#2a2a2a] border-[#3a3a3a] hover:border-[#FF6B4A]/40 transition-all hover:shadow-lg hover:shadow-[#FF6B4A]/10 group animate-scale-in"
+                      className="bg-card/50 backdrop-blur-sm border-primary/20 hover:border-primary/40 transition-all hover:shadow-lg hover:shadow-primary/10 group animate-scale-in"
                       style={{ animationDelay: `${index * 0.05}s` }}
                     >
                       <CardContent className="p-4">
@@ -1027,49 +854,49 @@ const Index = () => {
                                   variant="ghost" 
                                   size="sm"
                                   onClick={() => setEditingProduct(product)}
-                                  className="text-gray-400 hover:text-[#FF6B4A]"
+                                  className="text-muted-foreground hover:text-primary"
                                 >
                                   <Icon name="Settings" size={16} />
                                 </Button>
                               </DialogTrigger>
-                              <DialogContent className="bg-[#2a2a2a] border-[#3a3a3a] max-w-lg">
+                              <DialogContent className="bg-card/95 backdrop-blur-xl border-primary/30 max-w-lg">
                                 <DialogHeader>
-                                  <DialogTitle className="text-[#FF6B4A] text-xl">Редактировать товар</DialogTitle>
+                                  <DialogTitle className="text-primary text-xl">Редактировать товар</DialogTitle>
                                 </DialogHeader>
                                 {editingProduct && (
                                   <div className="space-y-4">
                                     <div>
-                                      <Label className="text-white">Название</Label>
+                                      <Label className="text-foreground">Название</Label>
                                       <Input
                                         value={editingProduct.name}
                                         onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
-                                        className="bg-[#3a3a3a] border-[#4a4a4a] text-white mt-1"
+                                        className="bg-background/50 border-primary/30 text-foreground mt-1"
                                       />
                                     </div>
                                     <div>
-                                      <Label className="text-white">Цена (₽)</Label>
+                                      <Label className="text-foreground">Цена (₽)</Label>
                                       <Input
                                         type="number"
                                         value={editingProduct.price}
                                         onChange={(e) => setEditingProduct({ ...editingProduct, price: parseFloat(e.target.value) })}
-                                        className="bg-[#3a3a3a] border-[#4a4a4a] text-white mt-1"
+                                        className="bg-background/50 border-primary/30 text-foreground mt-1"
                                       />
                                     </div>
                                     <div>
-                                      <Label className="text-white">Эмодзи</Label>
+                                      <Label className="text-foreground">Эмодзи</Label>
                                       <Input
                                         value={editingProduct.image}
                                         onChange={(e) => setEditingProduct({ ...editingProduct, image: e.target.value })}
-                                        className="bg-[#3a3a3a] border-[#4a4a4a] text-white mt-1"
+                                        className="bg-background/50 border-primary/30 text-foreground mt-1"
                                       />
                                     </div>
                                     <div>
-                                      <Label className="text-white">Изображение (опционально)</Label>
+                                      <Label className="text-foreground">Изображение (опционально)</Label>
                                       <Input
                                         type="file"
                                         accept="image/*"
                                         onChange={(e) => handleImageUpload(e, true)}
-                                        className="bg-[#3a3a3a] border-[#4a4a4a] text-white mt-1"
+                                        className="bg-background/50 border-primary/30 text-foreground mt-1"
                                       />
                                       {editingProduct.customImage && (
                                         <img src={editingProduct.customImage} alt="Preview" className="mt-2 w-20 h-20 object-cover rounded-lg" />
@@ -1090,7 +917,7 @@ const Index = () => {
                                     <Icon name="Trash2" className="mr-2" size={16} />
                                     Удалить
                                   </Button>
-                                  <Button onClick={updateProduct} className="bg-[#FF6B4A] hover:bg-[#ff5a39] text-white">
+                                  <Button onClick={updateProduct} className="bg-primary hover:bg-primary/90 text-primary-foreground">
                                     <Icon name="Check" className="mr-2" size={16} />
                                     Сохранить
                                   </Button>
@@ -1100,11 +927,11 @@ const Index = () => {
                           )}
                         </div>
                         
-                        <h3 className="font-semibold text-sm mb-2 text-white line-clamp-2">{product.name}</h3>
+                        <h3 className="font-semibold text-sm mb-2 text-foreground line-clamp-2">{product.name}</h3>
                         <div className="flex items-center justify-between mb-3">
-                          <span className="text-lg font-bold text-[#FF6B4A]">{product.price}₽</span>
+                          <span className="text-lg font-bold text-primary">{product.price}₽</span>
                           {product.salesCount > 0 && (
-                            <Badge variant="secondary" className="text-xs bg-[#FF6B4A]/20 text-[#FF6B4A] border-[#FF6B4A]/30">
+                            <Badge variant="secondary" className="text-xs bg-primary/20 text-primary border-primary/30">
                               {product.salesCount} шт
                             </Badge>
                           )}
@@ -1112,7 +939,7 @@ const Index = () => {
                         
                         <Button 
                           onClick={() => addToCart(product)}
-                          className="w-full bg-[#FF6B4A]/20 hover:bg-[#FF6B4A]/30 text-[#FF6B4A] border border-[#FF6B4A]/40 hover:border-[#FF6B4A]/60 transition-all"
+                          className="w-full bg-primary/20 hover:bg-primary/30 text-primary border border-primary/40 hover:border-primary/60 transition-all"
                           size="sm"
                         >
                           <Icon name="Plus" className="mr-1" size={14} />
@@ -1135,12 +962,12 @@ const Index = () => {
                   onClick={() => setActiveCartId(cart.id)}
                   className={`relative min-w-fit ${
                     activeCartId === cart.id 
-                      ? 'bg-[#FF6B4A] text-white' 
-                      : 'bg-[#2a2a2a] border-[#3a3a3a] text-white hover:bg-[#3a3a3a]'
+                      ? 'bg-primary text-primary-foreground' 
+                      : 'bg-card/50 border-primary/20 text-foreground hover:bg-card/70'
                   }`}
                 >
                   {cart.name}
-                  <Badge variant="secondary" className="ml-2 bg-[#3a3a3a]">
+                  <Badge variant="secondary" className="ml-2 bg-background/50">
                     {cart.items.length}
                   </Badge>
                   {carts.length > 1 && (
@@ -1149,7 +976,7 @@ const Index = () => {
                         e.stopPropagation();
                         deleteCart(cart.id);
                       }}
-                      className="ml-2 hover:text-red-400"
+                      className="ml-2 hover:text-destructive"
                     >
                       <Icon name="X" size={14} />
                     </button>
@@ -1160,28 +987,28 @@ const Index = () => {
                 variant="outline"
                 size="sm"
                 onClick={addNewCart}
-                className="bg-[#FF6B4A]/10 border-[#FF6B4A]/40 text-[#FF6B4A] hover:bg-[#FF6B4A]/20 min-w-fit"
+                className="bg-primary/10 border-primary/40 text-primary hover:bg-primary/20 min-w-fit"
               >
                 <Icon name="Plus" size={16} />
               </Button>
             </div>
 
-            <Card className="sticky top-24 bg-[#2a2a2a] border-[#3a3a3a] shadow-xl">
+            <Card className="sticky top-24 bg-card/50 backdrop-blur-xl border-primary/20 shadow-xl">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between mb-6">
                   <div>
-                    <h2 className="text-2xl font-bold text-[#FF6B4A] flex items-center gap-2">
+                    <h2 className="text-2xl font-bold text-primary flex items-center gap-2">
                       <Icon name="ShoppingCart" size={24} />
                       {activeCart.name}
                     </h2>
                     {activeCart.items.length > 0 && cartTimers[activeCart.id] && (
-                      <p className="text-sm text-gray-400 flex items-center gap-1 mt-1">
+                      <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
                         <Icon name="Timer" size={14} />
                         {cartTimers[activeCart.id]}
                       </p>
                     )}
                   </div>
-                  <Badge variant="secondary" className="bg-[#FF6B4A]/20 text-[#FF6B4A] border-[#FF6B4A]/30 text-base px-3 py-1">
+                  <Badge variant="secondary" className="bg-primary/20 text-primary border-primary/30 text-base px-3 py-1">
                     {activeCart.items.length}
                   </Badge>
                 </div>
@@ -1194,7 +1021,7 @@ const Index = () => {
                     const finalPrice = item.customPrice || basePrice;
 
                     return (
-                      <Card key={item.id} className="bg-[#3a3a3a] border-[#4a4a4a]">
+                      <Card key={item.id} className="bg-background/50 border-primary/20">
                         <CardContent className="p-3">
                           <div className="flex items-start gap-3">
                             {item.customImage ? (
@@ -1203,22 +1030,22 @@ const Index = () => {
                               <div className="text-3xl">{item.image}</div>
                             )}
                             <div className="flex-1 min-w-0">
-                              <h4 className="text-sm font-semibold text-white line-clamp-1">{item.name}</h4>
+                              <h4 className="text-sm font-semibold text-foreground line-clamp-1">{item.name}</h4>
                               <div className="flex items-center gap-2 mt-2">
                                 <Button
                                   size="sm"
                                   variant="outline"
                                   onClick={() => removeFromCart(item.id)}
-                                  className="h-7 w-7 p-0 bg-[#4a4a4a] border-[#5a5a5a] text-[#FF6B4A] hover:bg-[#5a5a5a]"
+                                  className="h-7 w-7 p-0 bg-background/50 border-primary/30 text-primary hover:bg-primary/20"
                                 >
                                   <Icon name="Minus" size={14} />
                                 </Button>
-                                <span className="text-base font-bold text-[#FF6B4A] min-w-[20px] text-center">{item.quantity}</span>
+                                <span className="text-base font-bold text-primary min-w-[20px] text-center">{item.quantity}</span>
                                 <Button
                                   size="sm"
                                   variant="outline"
                                   onClick={() => addToCart(item)}
-                                  className="h-7 w-7 p-0 bg-[#4a4a4a] border-[#5a5a5a] text-[#FF6B4A] hover:bg-[#5a5a5a]"
+                                  className="h-7 w-7 p-0 bg-background/50 border-primary/30 text-primary hover:bg-primary/20"
                                 >
                                   <Icon name="Plus" size={14} />
                                 </Button>
@@ -1234,8 +1061,8 @@ const Index = () => {
                                       onClick={() => setCoffeeSize(item.id, size as any)}
                                       className={`h-6 text-xs px-2 ${
                                         item.coffeeSize === size 
-                                          ? 'bg-[#FF6B4A] text-white' 
-                                          : 'bg-[#4a4a4a] border-[#5a5a5a] text-white hover:bg-[#5a5a5a]'
+                                          ? 'bg-primary text-primary-foreground' 
+                                          : 'bg-background/50 border-primary/30 text-foreground hover:bg-primary/20'
                                       }`}
                                     >
                                       {data.label}
@@ -1245,31 +1072,31 @@ const Index = () => {
                               )}
                             </div>
                             <div className="text-right">
-                              <div className="text-base font-bold text-[#FF6B4A]">{(finalPrice * item.quantity).toFixed(0)}₽</div>
+                              <div className="text-base font-bold text-primary">{(finalPrice * item.quantity).toFixed(0)}₽</div>
                               {userRole === 'admin' && (
                                 <Dialog>
                                   <DialogTrigger asChild>
                                     <Button 
                                       variant="ghost" 
                                       size="sm" 
-                                      className="h-6 mt-1 text-xs text-gray-400 hover:text-[#FF6B4A]"
+                                      className="h-6 mt-1 text-xs text-muted-foreground hover:text-primary"
                                     >
                                       <Icon name="Edit" size={12} />
                                     </Button>
                                   </DialogTrigger>
-                                  <DialogContent className="bg-[#2a2a2a] border-[#3a3a3a]">
+                                  <DialogContent className="bg-card/95 backdrop-blur-xl border-primary/30">
                                     <DialogHeader>
-                                      <DialogTitle className="text-[#FF6B4A]">Изменить цену</DialogTitle>
+                                      <DialogTitle className="text-primary">Изменить цену</DialogTitle>
                                     </DialogHeader>
                                     <div className="space-y-4">
                                       <div>
-                                        <Label className="text-white">Новая цена (₽)</Label>
+                                        <Label className="text-foreground">Новая цена (₽)</Label>
                                         <Input
                                           type="number"
                                           placeholder={basePrice.toString()}
                                           value={customPrice}
                                           onChange={(e) => setCustomPrice(e.target.value)}
-                                          className="bg-[#3a3a3a] border-[#4a4a4a] text-white mt-1"
+                                          className="bg-background/50 border-primary/30 text-foreground mt-1"
                                         />
                                       </div>
                                     </div>
@@ -1281,7 +1108,7 @@ const Index = () => {
                                             setCustomPrice('');
                                           }
                                         }}
-                                        className="bg-[#FF6B4A] hover:bg-[#ff5a39] text-white"
+                                        className="bg-primary hover:bg-primary/90 text-primary-foreground"
                                       >
                                         Применить
                                       </Button>
@@ -1298,9 +1125,9 @@ const Index = () => {
                 </div>
 
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between text-2xl font-bold pb-4 border-t border-[#3a3a3a] pt-4">
-                    <span className="text-white">Итого:</span>
-                    <span className="text-[#FF6B4A]">
+                  <div className="flex items-center justify-between text-2xl font-bold pb-4 border-t border-primary/20 pt-4">
+                    <span className="text-foreground">Итого:</span>
+                    <span className="text-primary">
                       {activeCart.items.reduce((sum, item) => {
                         const price = item.customPrice || (item.coffeeSize && item.category === 'coffee' ? item.price * COFFEE_SIZES[item.coffeeSize].multiplier : item.price);
                         return sum + (price * item.quantity);
@@ -1311,7 +1138,7 @@ const Index = () => {
                   <Button
                     onClick={completeSale}
                     disabled={activeCart.items.length === 0}
-                    className="w-full bg-[#FF6B4A] hover:bg-[#ff5a39] text-white font-semibold h-14 shadow-lg disabled:opacity-50 text-base transition-all"
+                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold h-14 shadow-lg hover:shadow-primary/50 disabled:opacity-50 text-base transition-all"
                   >
                     <Icon name="Check" className="mr-2" size={20} />
                     Завершить продажу
@@ -1321,7 +1148,7 @@ const Index = () => {
                     onClick={() => setCarts(carts.map(c => c.id === activeCartId ? { ...c, items: [], createdAt: Date.now() } : c))}
                     disabled={activeCart.items.length === 0}
                     variant="outline"
-                    className="w-full bg-red-500/10 border-red-500/40 text-red-400 hover:bg-red-500/20 h-12"
+                    className="w-full bg-destructive/10 border-destructive/40 text-destructive hover:bg-destructive/20 h-12"
                   >
                     <Icon name="Trash2" className="mr-2" size={16} />
                     Очистить корзину
