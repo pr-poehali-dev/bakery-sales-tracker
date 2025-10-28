@@ -767,10 +767,7 @@ const Index = () => {
               variant="outline"
               onClick={handleLogout}
               className="bg-destructive/10 border-destructive/40 text-destructive hover:bg-destructive/20"
-            >
-              <Icon name="LogOut" className="mr-2 h-4 w-4" />
-              Выход
-            </Button>
+            >Закрыть смену </Button>
           </div>
         </div>
       </header>
