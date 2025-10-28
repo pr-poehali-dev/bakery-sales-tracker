@@ -677,9 +677,7 @@ const Index = () => {
             <div className="flex items-center gap-3">
               <div className="text-5xl">🥖</div>
               <div>
-                <h1 className="text-3xl font-bold text-white">
-                  ХЛЕБНИК
-                </h1>
+                <h1 className="text-3xl font-bold text-white">Хлеб Бабушкин</h1>
                 <div className="flex items-center gap-3">
                   <p className="text-sm text-gray-400 flex items-center gap-1">
                     <Icon name="Clock" size={14} />
