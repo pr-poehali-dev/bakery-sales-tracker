@@ -581,10 +581,8 @@ const Index = () => {
                 <Button
                   variant="outline"
                   className="bg-blue-500/10 border-blue-500/40 text-blue-400 hover:bg-blue-500/20"
-                >
-                  <Icon name="Send" className="mr-2 h-4 w-4" />
-                  Telegram
-                </Button>
+                >Отчёт в Telegram
+</Button>
               </DialogTrigger>
               <DialogContent className="bg-card/95 backdrop-blur-xl border-primary/30 max-w-lg">
                 <DialogHeader>
