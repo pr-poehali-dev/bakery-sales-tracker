@@ -11,10 +11,16 @@ import { useToast } from '@/hooks/use-toast';
 
 type UserRole = 'admin' | 'cashier';
 
+interface Category {
+  id: string;
+  label: string;
+  emoji: string;
+}
+
 interface Product {
   id: string;
   name: string;
-  category: 'pies' | 'coffee' | 'sweets' | 'kitchen' | 'drinks';
+  category: string;
   price: number;
   image: string;
   salesCount: number;
@@ -27,13 +33,20 @@ interface CartItem extends Product {
   customPrice?: number;
 }
 
+interface Cart {
+  id: string;
+  name: string;
+  items: CartItem[];
+  createdAt: number;
+}
+
 const COFFEE_SIZES = {
   small: { label: '100 мл', multiplier: 1 },
   medium: { label: '250 мл', multiplier: 1.3 },
   large: { label: '400 мл', multiplier: 1.6 }
 };
 
-const CATEGORIES = [
+const INITIAL_CATEGORIES: Category[] = [
   { id: 'pies', label: '🍽️ Пирожки', emoji: '🍽️' },
   { id: 'coffee', label: '☕ Кофе и Чай', emoji: '☕' },
   { id: 'sweets', label: '🍰 Сладкое', emoji: '🍰' },
@@ -116,28 +129,45 @@ const Index = () => {
   const [sessionDuration, setSessionDuration] = useState('00:00:00');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [carts, setCarts] = useState<Cart[]>([{ id: '1', name: 'Корзина 1', items: [], createdAt: Date.now() }]);
+  const [activeCartId, setActiveCartId] = useState('1');
   const [products, setProducts] = useState<Product[]>(() => {
     const saved = localStorage.getItem('bakery-products');
     return saved ? JSON.parse(saved) : INITIAL_PRODUCTS;
   });
-  const [selectedCategory, setSelectedCategory] = useState<'all' | 'pies' | 'coffee' | 'sweets' | 'kitchen' | 'drinks'>('all');
+  const [categories, setCategories] = useState<Category[]>(() => {
+    const saved = localStorage.getItem('bakery-categories');
+    return saved ? JSON.parse(saved) : INITIAL_CATEGORIES;
+  });
+  const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [showCategoryHome, setShowCategoryHome] = useState(true);
   const [customPriceDialog, setCustomPriceDialog] = useState(false);
   const [customPrice, setCustomPrice] = useState('');
   const [editProductDialog, setEditProductDialog] = useState(false);
   const [addProductDialog, setAddProductDialog] = useState(false);
+  const [addCategoryDialog, setAddCategoryDialog] = useState(false);
+  const [exportDialog, setExportDialog] = useState(false);
+  const [telegramBotToken, setTelegramBotToken] = useState('');
+  const [telegramChatId, setTelegramChatId] = useState('');
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [newProduct, setNewProduct] = useState({ name: '', category: 'pies' as const, price: '', image: '🍞', customImage: '' });
+  const [newProduct, setNewProduct] = useState({ name: '', category: 'pies', price: '', image: '🍞', customImage: '' });
+  const [newCategory, setNewCategory] = useState({ id: '', label: '', emoji: '📦' });
+  const [cartTimers, setCartTimers] = useState<Record<string, string>>({});
   const { toast } = useToast();
 
+  const activeCart = carts.find(c => c.id === activeCartId) || carts[0];
+
   useEffect(() => {
-    audioRef.current = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIF2m98OScTgwOUKrk77RgGwU7k9n0ynsrBSp+zPLaizsKElyx6+mrVxMJR6Hh8r9vIAUrgs/y2Ik2CBdqvfDknE4MDlCq5O+0YBsFO5PZ9Mp8KwUqfszy2os7ChJcsevrq1cTCUeh4fK/byAFK4LP8tiJNggXar3w5JxODA5QquTvtGAbBTuT2fTKfCsFKn7M8tqLOwoSXLHr66tXEwlHoeHyv28gBSuCz/LYiTYIF2q98OScTgwOUKrk77RgGwU7k9n0ynwrBSp+zPLaizsKElyx6+urVxMJR6Hh8r9vIAUrgs/y2Ik2CBdqvfDknE4MDlCq5O+0YBsFO5PZ9Mp8KwUqfszy2os7ChJcsevrq1cTCUeh4fK/byAFK4LP8tiJNggXar3w5JxODA5QquTvtGAbBTuT2fTKfCsFKn7M8tqLOwoSXLHr66tXEwlHoeHyv28gBSuCz/LYiTYIF2q98OScTgwOUKrk77RgGwU7k9n0ynwrBSp+zPLaizsKElyx6+urVxMJR6Hh8r9vIAUrgs/y2Ik2CBdqvfDknE4MDlCq5O+0YBsFO5PZ9Mp8KwUqfszy2os7ChJcsevrq1cTCUeh4fK/byAFK4LP8tiJNggXar3w5JxODA5QquTvtGAbBTuT2fTKfCsFKn7M8tqLOwoSXLHr66tXEwlHoeHyv28gBSuCz/LYiTYIF2q98OScTgwOUKrk77RgGwU7k9n0ynwrBSp+zPLaizsKElyx6+urVxMJR6Hh8r9vIAUrgs/y2Ik2CBdqvfDknE4MDlCq5O+0YBsFO5PZ9Mp8KwUqfszy2os7ChJcsevrq1cTCUeh4fK/byAFK4LP8tiJNggXar3w5JxODA==');
+    audioRef.current = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIF2m98OScTgwOUKrk77RgGwU7k9n0ynsrBSp+zPLaizsKElyx6+mrVxMJR6Hh8r9vIAUrgs/y2Ik2CBdqvfDknE4MDlCq5O+0YBsFO5PZ9Mp8KwUqfszy2os7ChJcsevrq1cTCUeh4fK/byAFK4LP8tiJNggXar3w5JxODA5QquTvtGAbBTuT2fTKfCsFKn7M8tqLOwoSXLHr66tXEwlHoeHyv28gBSuCz/LYiTYIF2q98OScTgwOUKrk77RgGwU7k9n0ynwrBSp+zPLaizsKElyx6+urVxMJR6Hh8r9vIAUrgs/y2Ik2CBdqvfDknE4MDlCq5O+0YBsFO5PZ9Mp8KwUqfszy2os7ChJcsevrq1cTCUeh4fK/byAFK4LP8tiJNggXar3w5JxODA5QquTvtGAbBTuT2fTKfCsFKn7M8tqLOwoSXLHr66tXEwlHoeHyv28gBSuCz/LYiTYIF2q98OScTgwOUKrk77RgGwU7k9n0ynwrBSp+zPLaizsKElyx6+urVxMJR6Hh8r9vIAUrgs/y2Ik2CBdqvfDknE4MDlCq5O+0YBsFO5PZ9Mp8KwUqfszy2os7ChJcsevrq1cTCUeh4fK/byAFK4LP8tiJNggXar3w5JxODA5QquTvtGAbBTuT2fTKfCsFKn7M8tqLOwoSXLHr66tXEwlHoeHyv28gBSuCz/LYiTYIF2q98OScTgwOUKrk77RgGwU7k9n0ynwrBSp+zPLaizsKElyx6+urq1cTCUeh4fK/byAFK4LP8tiJNggXar3w5JxODA==');
   }, []);
 
   useEffect(() => {
     localStorage.setItem('bakery-products', JSON.stringify(products));
   }, [products]);
+
+  useEffect(() => {
+    localStorage.setItem('bakery-categories', JSON.stringify(categories));
+  }, [categories]);
 
   useEffect(() => {
     if (!isAuthenticated || !sessionStartTime) return;
@@ -153,6 +183,23 @@ const Index = () => {
 
     return () => clearInterval(interval);
   }, [isAuthenticated, sessionStartTime]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const timers: Record<string, string> = {};
+      carts.forEach(cart => {
+        if (cart.items.length > 0) {
+          const duration = Date.now() - cart.createdAt;
+          const minutes = Math.floor(duration / 60000);
+          const seconds = Math.floor((duration % 60000) / 1000);
+          timers[cart.id] = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        }
+      });
+      setCartTimers(timers);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [carts]);
 
   const playSuccessSound = () => {
     if (audioRef.current) {
@@ -180,15 +227,12 @@ const Index = () => {
   };
 
   const handleLogout = () => {
-    const totalSales = cart.reduce((sum, item) => {
-      const price = item.customPrice || (item.coffeeSize && item.category === 'coffee' ? item.price * COFFEE_SIZES[item.coffeeSize].multiplier : item.price);
-      return sum + (price * item.quantity);
-    }, 0);
+    const hasActiveOrders = carts.some(cart => cart.items.length > 0);
 
-    if (totalSales > 0 || cart.length > 0) {
+    if (hasActiveOrders) {
       toast({ 
         title: 'Закрытие смены', 
-        description: `Незавершённая корзина на ${totalSales}₽. Завершите или очистите её.`,
+        description: 'Есть незавершённые корзины. Завершите или очистите их.',
         variant: 'destructive'
       });
       return;
@@ -206,36 +250,75 @@ const Index = () => {
   };
 
   const addToCart = (product: Product) => {
-    const existingItem = cart.find(item => item.id === product.id);
-    if (existingItem) {
-      setCart(cart.map(item => 
-        item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
-      ));
-    } else {
-      setCart([...cart, { ...product, quantity: 1 }]);
-    }
+    setCarts(carts.map(cart => {
+      if (cart.id === activeCartId) {
+        const existingItem = cart.items.find(item => item.id === product.id);
+        if (existingItem) {
+          return {
+            ...cart,
+            items: cart.items.map(item => 
+              item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+            )
+          };
+        } else {
+          return {
+            ...cart,
+            items: [...cart.items, { ...product, quantity: 1 }]
+          };
+        }
+      }
+      return cart;
+    }));
   };
 
   const removeFromCart = (id: string) => {
-    const item = cart.find(c => c.id === id);
-    if (item && item.quantity > 1) {
-      setCart(cart.map(c => c.id === id ? { ...c, quantity: c.quantity - 1 } : c));
-    } else {
-      setCart(cart.filter(c => c.id !== id));
-    }
+    setCarts(carts.map(cart => {
+      if (cart.id === activeCartId) {
+        const item = cart.items.find(c => c.id === id);
+        if (item && item.quantity > 1) {
+          return {
+            ...cart,
+            items: cart.items.map(c => c.id === id ? { ...c, quantity: c.quantity - 1 } : c)
+          };
+        } else {
+          return {
+            ...cart,
+            items: cart.items.filter(c => c.id !== id)
+          };
+        }
+      }
+      return cart;
+    }));
   };
 
   const setCoffeeSize = (id: string, size: 'small' | 'medium' | 'large') => {
-    setCart(cart.map(item => item.id === id ? { ...item, coffeeSize: size } : item));
+    setCarts(carts.map(cart => {
+      if (cart.id === activeCartId) {
+        return {
+          ...cart,
+          items: cart.items.map(item => item.id === id ? { ...item, coffeeSize: size } : item)
+        };
+      }
+      return cart;
+    }));
   };
 
   const setItemCustomPrice = (id: string, price: number) => {
-    setCart(cart.map(item => item.id === id ? { ...item, customPrice: price } : item));
+    setCarts(carts.map(cart => {
+      if (cart.id === activeCartId) {
+        return {
+          ...cart,
+          items: cart.items.map(item => item.id === id ? { ...item, customPrice: price } : item)
+        };
+      }
+      return cart;
+    }));
   };
 
   const completeSale = () => {
+    const cart = activeCart;
     const updatedProducts = products.map(product => {
-      const cartItem = cart.find(item => item.id === product.id);
+      const cartItem = cart.items.find(item => item.id === product.id);
       if (cartItem) {
         return { ...product, salesCount: product.salesCount + cartItem.quantity };
       }
@@ -243,12 +326,31 @@ const Index = () => {
     });
     
     setProducts(updatedProducts);
-    setCart([]);
+    setCarts(carts.map(c => c.id === activeCartId ? { ...c, items: [], createdAt: Date.now() } : c));
     playSuccessSound();
     toast({ 
       title: '✅ Продажа завершена',
       description: 'Спасибо за покупку!'
     });
+  };
+
+  const addNewCart = () => {
+    const newCartId = (carts.length + 1).toString();
+    setCarts([...carts, { id: newCartId, name: `Корзина ${newCartId}`, items: [], createdAt: Date.now() }]);
+    setActiveCartId(newCartId);
+    toast({ title: 'Новая корзина создана' });
+  };
+
+  const deleteCart = (cartId: string) => {
+    if (carts.length === 1) {
+      toast({ title: 'Нельзя удалить последнюю корзину', variant: 'destructive' });
+      return;
+    }
+    setCarts(carts.filter(c => c.id !== cartId));
+    if (activeCartId === cartId) {
+      setActiveCartId(carts[0].id);
+    }
+    toast({ title: 'Корзина удалена' });
   };
 
   const addNewProduct = () => {
@@ -273,6 +375,33 @@ const Index = () => {
     toast({ title: 'Товар добавлен' });
   };
 
+  const addNewCategory = () => {
+    if (!newCategory.id || !newCategory.label || !newCategory.emoji) {
+      toast({ title: 'Заполните все поля', variant: 'destructive' });
+      return;
+    }
+    
+    if (categories.find(c => c.id === newCategory.id)) {
+      toast({ title: 'Категория с таким ID уже существует', variant: 'destructive' });
+      return;
+    }
+    
+    setCategories([...categories, { ...newCategory, label: `${newCategory.emoji} ${newCategory.label}` }]);
+    setNewCategory({ id: '', label: '', emoji: '📦' });
+    setAddCategoryDialog(false);
+    toast({ title: 'Категория добавлена' });
+  };
+
+  const deleteCategory = (categoryId: string) => {
+    const hasProducts = products.some(p => p.category === categoryId);
+    if (hasProducts) {
+      toast({ title: 'Нельзя удалить категорию с товарами', variant: 'destructive' });
+      return;
+    }
+    setCategories(categories.filter(c => c.id !== categoryId));
+    toast({ title: 'Категория удалена' });
+  };
+
   const deleteProduct = (id: string) => {
     setProducts(products.filter(p => p.id !== id));
     toast({ title: 'Товар удалён' });
@@ -285,6 +414,51 @@ const Index = () => {
     setEditProductDialog(false);
     setEditingProduct(null);
     toast({ title: 'Товар обновлён' });
+  };
+
+  const exportToTelegram = async () => {
+    if (!telegramBotToken || !telegramChatId) {
+      toast({ title: 'Введите токен бота и Chat ID', variant: 'destructive' });
+      return;
+    }
+
+    const totalSales = products.reduce((sum, p) => sum + (p.price * p.salesCount), 0);
+    const totalItems = products.reduce((sum, p) => sum + p.salesCount, 0);
+    
+    let report = `📊 *Отчет о продажах*\n\n`;
+    report += `⏰ Смена: ${sessionDuration}\n`;
+    report += `💰 Общая выручка: ${totalSales}₽\n`;
+    report += `📦 Продано товаров: ${totalItems} шт\n\n`;
+    report += `*Детализация по товарам:*\n`;
+    
+    products
+      .filter(p => p.salesCount > 0)
+      .sort((a, b) => b.salesCount - a.salesCount)
+      .forEach(p => {
+        report += `\n${p.image} ${p.name}\n`;
+        report += `   Продано: ${p.salesCount} шт × ${p.price}₽ = ${p.price * p.salesCount}₽\n`;
+      });
+
+    try {
+      const response = await fetch(`https://api.telegram.org/bot${telegramBotToken}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: telegramChatId,
+          text: report,
+          parse_mode: 'Markdown'
+        })
+      });
+
+      if (response.ok) {
+        toast({ title: '✅ Отчет отправлен в Telegram!' });
+        setExportDialog(false);
+      } else {
+        toast({ title: 'Ошибка отправки в Telegram', variant: 'destructive' });
+      }
+    } catch (error) {
+      toast({ title: 'Ошибка соединения', variant: 'destructive' });
+    }
   };
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean = false) => {
@@ -303,7 +477,7 @@ const Index = () => {
     reader.readAsDataURL(file);
   };
 
-  const handleCategorySelect = (category: typeof selectedCategory) => {
+  const handleCategorySelect = (category: string) => {
     setSelectedCategory(category);
     setShowCategoryHome(false);
   };
@@ -401,85 +575,185 @@ const Index = () => {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {userRole === 'admin' && (
-              <Dialog open={addProductDialog} onOpenChange={setAddProductDialog}>
-                <DialogTrigger asChild>
-                  <Button
-                    variant="outline"
-                    className="bg-primary/10 border-primary/40 text-primary hover:bg-primary/20 hover:border-primary/60"
-                  >
-                    <Icon name="Plus" className="mr-2 h-4 w-4" />
-                    Товар
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="bg-card/95 backdrop-blur-xl border-primary/30 max-w-lg">
-                  <DialogHeader>
-                    <DialogTitle className="text-primary text-xl">Добавить товар</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div>
-                      <Label className="text-foreground">Название</Label>
-                      <Input
-                        value={newProduct.name}
-                        onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
-                        className="bg-background/50 border-primary/30 text-foreground mt-1"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-foreground">Категория</Label>
-                      <Select value={newProduct.category} onValueChange={(v: any) => setNewProduct({ ...newProduct, category: v })}>
-                        <SelectTrigger className="bg-background/50 border-primary/30 text-foreground mt-1">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="bg-card border-primary/30">
-                          {CATEGORIES.map(cat => (
-                            <SelectItem key={cat.id} value={cat.id} className="text-foreground">
-                              {cat.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <Label className="text-foreground">Цена (₽)</Label>
-                      <Input
-                        type="number"
-                        value={newProduct.price}
-                        onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
-                        className="bg-background/50 border-primary/30 text-foreground mt-1"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-foreground">Эмодзи</Label>
-                      <Input
-                        value={newProduct.image}
-                        onChange={(e) => setNewProduct({ ...newProduct, image: e.target.value })}
-                        placeholder="🍞"
-                        className="bg-background/50 border-primary/30 text-foreground mt-1"
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-foreground">Изображение (опционально)</Label>
-                      <Input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => handleImageUpload(e, false)}
-                        className="bg-background/50 border-primary/30 text-foreground mt-1"
-                      />
-                      {newProduct.customImage && (
-                        <img src={newProduct.customImage} alt="Preview" className="mt-2 w-20 h-20 object-cover rounded-lg" />
-                      )}
-                    </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Dialog open={exportDialog} onOpenChange={setExportDialog}>
+              <DialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="bg-blue-500/10 border-blue-500/40 text-blue-400 hover:bg-blue-500/20"
+                >
+                  <Icon name="Send" className="mr-2 h-4 w-4" />
+                  Telegram
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="bg-card/95 backdrop-blur-xl border-primary/30 max-w-lg">
+                <DialogHeader>
+                  <DialogTitle className="text-primary text-xl">Экспорт отчета в Telegram</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div>
+                    <Label className="text-foreground">Bot Token</Label>
+                    <Input
+                      value={telegramBotToken}
+                      onChange={(e) => setTelegramBotToken(e.target.value)}
+                      placeholder="123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
+                      className="bg-background/50 border-primary/30 text-foreground mt-1"
+                    />
                   </div>
-                  <DialogFooter>
-                    <Button onClick={addNewProduct} className="bg-primary hover:bg-primary/90 text-primary-foreground">
-                      <Icon name="Check" className="mr-2" size={16} />
-                      Добавить
+                  <div>
+                    <Label className="text-foreground">Chat ID</Label>
+                    <Input
+                      value={telegramChatId}
+                      onChange={(e) => setTelegramChatId(e.target.value)}
+                      placeholder="123456789"
+                      className="bg-background/50 border-primary/30 text-foreground mt-1"
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Создайте бота через @BotFather и получите Chat ID через @userinfobot
+                  </p>
+                </div>
+                <DialogFooter>
+                  <Button onClick={exportToTelegram} className="bg-blue-500 hover:bg-blue-600 text-white">
+                    <Icon name="Send" className="mr-2" size={16} />
+                    Отправить
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            {userRole === 'admin' && (
+              <>
+                <Dialog open={addCategoryDialog} onOpenChange={setAddCategoryDialog}>
+                  <DialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="bg-primary/10 border-primary/40 text-primary hover:bg-primary/20"
+                    >
+                      <Icon name="FolderPlus" className="mr-2 h-4 w-4" />
+                      Категория
                     </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+                  </DialogTrigger>
+                  <DialogContent className="bg-card/95 backdrop-blur-xl border-primary/30 max-w-lg">
+                    <DialogHeader>
+                      <DialogTitle className="text-primary text-xl">Добавить категорию</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label className="text-foreground">ID категории (англ.)</Label>
+                        <Input
+                          value={newCategory.id}
+                          onChange={(e) => setNewCategory({ ...newCategory, id: e.target.value.toLowerCase() })}
+                          placeholder="snacks"
+                          className="bg-background/50 border-primary/30 text-foreground mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-foreground">Название</Label>
+                        <Input
+                          value={newCategory.label}
+                          onChange={(e) => setNewCategory({ ...newCategory, label: e.target.value })}
+                          placeholder="Закуски"
+                          className="bg-background/50 border-primary/30 text-foreground mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-foreground">Эмодзи</Label>
+                        <Input
+                          value={newCategory.emoji}
+                          onChange={(e) => setNewCategory({ ...newCategory, emoji: e.target.value })}
+                          placeholder="🍿"
+                          className="bg-background/50 border-primary/30 text-foreground mt-1"
+                        />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button onClick={addNewCategory} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                        <Icon name="Check" className="mr-2" size={16} />
+                        Добавить
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+
+                <Dialog open={addProductDialog} onOpenChange={setAddProductDialog}>
+                  <DialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="bg-primary/10 border-primary/40 text-primary hover:bg-primary/20"
+                    >
+                      <Icon name="Plus" className="mr-2 h-4 w-4" />
+                      Товар
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="bg-card/95 backdrop-blur-xl border-primary/30 max-w-lg">
+                    <DialogHeader>
+                      <DialogTitle className="text-primary text-xl">Добавить товар</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label className="text-foreground">Название</Label>
+                        <Input
+                          value={newProduct.name}
+                          onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
+                          className="bg-background/50 border-primary/30 text-foreground mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-foreground">Категория</Label>
+                        <Select value={newProduct.category} onValueChange={(v) => setNewProduct({ ...newProduct, category: v })}>
+                          <SelectTrigger className="bg-background/50 border-primary/30 text-foreground mt-1">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-card border-primary/30">
+                            {categories.map(cat => (
+                              <SelectItem key={cat.id} value={cat.id} className="text-foreground">
+                                {cat.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-foreground">Цена (₽)</Label>
+                        <Input
+                          type="number"
+                          value={newProduct.price}
+                          onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
+                          className="bg-background/50 border-primary/30 text-foreground mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-foreground">Эмодзи</Label>
+                        <Input
+                          value={newProduct.image}
+                          onChange={(e) => setNewProduct({ ...newProduct, image: e.target.value })}
+                          placeholder="🍞"
+                          className="bg-background/50 border-primary/30 text-foreground mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-foreground">Изображение (опционально)</Label>
+                        <Input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) => handleImageUpload(e, false)}
+                          className="bg-background/50 border-primary/30 text-foreground mt-1"
+                        />
+                        {newProduct.customImage && (
+                          <img src={newProduct.customImage} alt="Preview" className="mt-2 w-20 h-20 object-cover rounded-lg" />
+                        )}
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button onClick={addNewProduct} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                        <Icon name="Check" className="mr-2" size={16} />
+                        Добавить
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </>
             )}
 
             <Button
@@ -499,23 +773,37 @@ const Index = () => {
           <div className="lg:col-span-2 space-y-6">
             {showCategoryHome ? (
               <div className="animate-slide-up">
-                <h2 className="text-3xl font-bold mb-6 bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                  Выберите категорию
-                </h2>
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                    Выберите категорию
+                  </h2>
+                </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  {CATEGORIES.map((cat, index) => (
+                  {categories.map((cat, index) => (
                     <Card 
                       key={cat.id}
-                      onClick={() => handleCategorySelect(cat.id as any)}
-                      className="cursor-pointer bg-card/50 backdrop-blur-sm border-primary/20 hover:border-primary/50 hover:bg-card/70 transition-all group hover:shadow-lg hover:shadow-primary/20 animate-scale-in"
+                      className="cursor-pointer bg-card/50 backdrop-blur-sm border-primary/20 hover:border-primary/50 hover:bg-card/70 transition-all group hover:shadow-lg hover:shadow-primary/20 animate-scale-in relative"
                       style={{ animationDelay: `${index * 0.1}s` }}
                     >
-                      <CardContent className="p-8 text-center">
+                      <CardContent className="p-8 text-center" onClick={() => handleCategorySelect(cat.id)}>
                         <div className="text-6xl mb-4 group-hover:scale-110 transition-transform">{cat.emoji}</div>
                         <h3 className="font-semibold text-lg text-foreground group-hover:text-primary transition-colors">
                           {cat.label.replace(cat.emoji + ' ', '')}
                         </h3>
                       </CardContent>
+                      {userRole === 'admin' && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteCategory(cat.id);
+                          }}
+                          className="absolute top-2 right-2 text-destructive hover:text-destructive/80"
+                        >
+                          <Icon name="Trash2" size={14} />
+                        </Button>
+                      )}
                     </Card>
                   ))}
                 </div>
@@ -524,7 +812,7 @@ const Index = () => {
               <div className="animate-slide-up">
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-                    {selectedCategory === 'all' ? 'Все товары' : CATEGORIES.find(c => c.id === selectedCategory)?.label}
+                    {selectedCategory === 'all' ? 'Все товары' : categories.find(c => c.id === selectedCategory)?.label}
                   </h2>
                   <Button 
                     variant="outline"
@@ -656,21 +944,68 @@ const Index = () => {
             )}
           </div>
 
-          <div className="lg:col-span-1">
+          <div className="lg:col-span-1 space-y-4">
+            <div className="flex items-center gap-2 overflow-x-auto pb-2">
+              {carts.map(cart => (
+                <Button
+                  key={cart.id}
+                  variant={activeCartId === cart.id ? "default" : "outline"}
+                  onClick={() => setActiveCartId(cart.id)}
+                  className={`relative min-w-fit ${
+                    activeCartId === cart.id 
+                      ? 'bg-primary text-primary-foreground' 
+                      : 'bg-card/50 border-primary/20 text-foreground hover:bg-card/70'
+                  }`}
+                >
+                  {cart.name}
+                  <Badge variant="secondary" className="ml-2 bg-background/50">
+                    {cart.items.length}
+                  </Badge>
+                  {carts.length > 1 && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteCart(cart.id);
+                      }}
+                      className="ml-2 hover:text-destructive"
+                    >
+                      <Icon name="X" size={14} />
+                    </button>
+                  )}
+                </Button>
+              ))}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={addNewCart}
+                className="bg-primary/10 border-primary/40 text-primary hover:bg-primary/20 min-w-fit"
+              >
+                <Icon name="Plus" size={16} />
+              </Button>
+            </div>
+
             <Card className="sticky top-24 bg-card/50 backdrop-blur-xl border-primary/20 shadow-xl">
               <CardContent className="p-6">
                 <div className="flex items-center justify-between mb-6">
-                  <h2 className="text-2xl font-bold text-primary flex items-center gap-2">
-                    <Icon name="ShoppingCart" size={24} />
-                    Корзина
-                  </h2>
+                  <div>
+                    <h2 className="text-2xl font-bold text-primary flex items-center gap-2">
+                      <Icon name="ShoppingCart" size={24} />
+                      {activeCart.name}
+                    </h2>
+                    {activeCart.items.length > 0 && cartTimers[activeCart.id] && (
+                      <p className="text-sm text-muted-foreground flex items-center gap-1 mt-1">
+                        <Icon name="Timer" size={14} />
+                        {cartTimers[activeCart.id]}
+                      </p>
+                    )}
+                  </div>
                   <Badge variant="secondary" className="bg-primary/20 text-primary border-primary/30 text-base px-3 py-1">
-                    {cart.length}
+                    {activeCart.items.length}
                   </Badge>
                 </div>
 
                 <div className="space-y-3 mb-6 max-h-96 overflow-y-auto pr-2">
-                  {cart.map((item) => {
+                  {activeCart.items.map((item) => {
                     const basePrice = item.coffeeSize && item.category === 'coffee'
                       ? item.price * COFFEE_SIZES[item.coffeeSize].multiplier
                       : item.price;
@@ -784,7 +1119,7 @@ const Index = () => {
                   <div className="flex items-center justify-between text-2xl font-bold pb-4 border-t border-primary/20 pt-4">
                     <span className="text-foreground">Итого:</span>
                     <span className="text-primary">
-                      {cart.reduce((sum, item) => {
+                      {activeCart.items.reduce((sum, item) => {
                         const price = item.customPrice || (item.coffeeSize && item.category === 'coffee' ? item.price * COFFEE_SIZES[item.coffeeSize].multiplier : item.price);
                         return sum + (price * item.quantity);
                       }, 0).toFixed(0)}₽
@@ -793,7 +1128,7 @@ const Index = () => {
 
                   <Button
                     onClick={completeSale}
-                    disabled={cart.length === 0}
+                    disabled={activeCart.items.length === 0}
                     className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold h-14 shadow-lg hover:shadow-primary/50 disabled:opacity-50 text-base transition-all"
                   >
                     <Icon name="Check" className="mr-2" size={20} />
@@ -801,8 +1136,8 @@ const Index = () => {
                   </Button>
                   
                   <Button
-                    onClick={() => setCart([])}
-                    disabled={cart.length === 0}
+                    onClick={() => setCarts(carts.map(c => c.id === activeCartId ? { ...c, items: [], createdAt: Date.now() } : c))}
+                    disabled={activeCart.items.length === 0}
                     variant="outline"
                     className="w-full bg-destructive/10 border-destructive/40 text-destructive hover:bg-destructive/20 h-12"
                   >
