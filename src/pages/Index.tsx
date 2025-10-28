@@ -123,226 +123,141 @@ const Index = () => {
   }, [products]);
 
   useEffect(() => {
-    localStorage.setItem('bakery-session-active', isAuthenticated.toString());
-  }, [isAuthenticated]);
-
-  useEffect(() => {
-    if (sessionStartTime) {
-      localStorage.setItem('bakery-session-start', sessionStartTime.toString());
-    }
-  }, [sessionStartTime]);
-
-  useEffect(() => {
-    if (!sessionStartTime) return;
-
+    if (!isAuthenticated || !sessionStartTime) return;
+    
     const interval = setInterval(() => {
-      const elapsed = Date.now() - sessionStartTime;
-      const hours = Math.floor(elapsed / 3600000);
-      const minutes = Math.floor((elapsed % 3600000) / 60000);
-      const seconds = Math.floor((elapsed % 60000) / 1000);
-      setSessionDuration(
-        `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
-      );
+      const now = Date.now();
+      const duration = now - sessionStartTime;
+      const hours = Math.floor(duration / 3600000);
+      const minutes = Math.floor((duration % 3600000) / 60000);
+      const seconds = Math.floor((duration % 60000) / 1000);
+      setSessionDuration(`${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [sessionStartTime]);
+  }, [isAuthenticated, sessionStartTime]);
 
   const handleLogin = () => {
     if (password === '1234') {
+      const now = Date.now();
       setIsAuthenticated(true);
-      setSessionStartTime(Date.now());
-      toast({
-        title: "Смена открыта",
-        description: "Добро пожаловать в систему учёта",
-      });
+      setSessionStartTime(now);
+      localStorage.setItem('bakery-session-active', 'true');
+      localStorage.setItem('bakery-session-start', now.toString());
+      toast({ title: 'Смена открыта' });
     } else {
-      toast({
-        title: "Ошибка входа",
-        description: "Неверный пароль",
-        variant: "destructive"
-      });
+      toast({ title: 'Неверный пароль', variant: 'destructive' });
     }
   };
 
   const handleLogout = () => {
-    setIsAuthenticated(false);
-    setSessionStartTime(null);
-    setSessionDuration('00:00:00');
-    localStorage.removeItem('bakery-session-active');
-    localStorage.removeItem('bakery-session-start');
-    toast({
-      title: "Смена закрыта",
-      description: "До встречи!",
-    });
-  };
+    const totalSales = cart.reduce((sum, item) => {
+      const price = item.customPrice || (item.coffeeSize && item.category === 'coffee' ? item.price * COFFEE_SIZES[item.coffeeSize].multiplier : item.price);
+      return sum + (price * item.quantity);
+    }, 0);
 
-  const addToCart = (product: Product, coffeeSize?: 'small' | 'medium' | 'large') => {
-    const existingItem = cart.find(item => 
-      item.id === product.id && item.coffeeSize === coffeeSize
-    );
-
-    if (existingItem) {
-      setCart(cart.map(item =>
-        item.id === product.id && item.coffeeSize === coffeeSize
-          ? { ...item, quantity: item.quantity + 1 }
-          : item
-      ));
-    } else {
-      const price = coffeeSize && product.category === 'coffee' 
-        ? product.price * COFFEE_SIZES[coffeeSize].multiplier 
-        : product.price;
-      
-      setCart([...cart, { ...product, quantity: 1, coffeeSize, price }]);
-    }
-
-    toast({
-      title: "Добавлено",
-      description: `${product.name} добавлен в корзину`,
-    });
-  };
-
-  const addCustomPriceItem = () => {
-    if (!customPrice || parseFloat(customPrice) <= 0) {
-      toast({
-        title: "Ошибка",
-        description: "Введите корректную цену",
-        variant: "destructive"
+    if (totalSales > 0 || cart.length > 0) {
+      toast({ 
+        title: 'Закрытие смены', 
+        description: `Незавершённая корзина на ${totalSales}₽. Завершите или очистите её.`,
+        variant: 'destructive'
       });
       return;
     }
 
-    const customItem: CartItem = {
-      id: `custom-${Date.now()}`,
-      name: 'Товар по свободной цене',
-      category: 'pies',
-      price: parseFloat(customPrice),
-      image: '💰',
-      salesCount: 0,
-      quantity: 1
-    };
+    setIsAuthenticated(false);
+    setSessionStartTime(null);
+    localStorage.removeItem('bakery-session-active');
+    localStorage.removeItem('bakery-session-start');
+    setPassword('');
+    toast({ title: 'Смена закрыта' });
+  };
 
-    setCart([...cart, customItem]);
-    setCustomPrice('');
-    setCustomPriceDialog(false);
-    
-    toast({
-      title: "Добавлено",
-      description: `Товар на сумму ${customPrice}₽ добавлен`,
-    });
+  const addToCart = (product: Product) => {
+    const existingItem = cart.find(item => item.id === product.id);
+    if (existingItem) {
+      setCart(cart.map(item => 
+        item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+      ));
+    } else {
+      setCart([...cart, { ...product, quantity: 1 }]);
+    }
+  };
+
+  const removeFromCart = (id: string) => {
+    const item = cart.find(c => c.id === id);
+    if (item && item.quantity > 1) {
+      setCart(cart.map(c => c.id === id ? { ...c, quantity: c.quantity - 1 } : c));
+    } else {
+      setCart(cart.filter(c => c.id !== id));
+    }
+  };
+
+  const setCoffeeSize = (id: string, size: 'small' | 'medium' | 'large') => {
+    setCart(cart.map(item => item.id === id ? { ...item, coffeeSize: size } : item));
+  };
+
+  const setItemCustomPrice = (id: string, price: number) => {
+    setCart(cart.map(item => item.id === id ? { ...item, customPrice: price } : item));
   };
 
   const completeSale = () => {
     const updatedProducts = products.map(product => {
-      const soldQuantity = cart
-        .filter(item => item.id === product.id)
-        .reduce((sum, item) => sum + item.quantity, 0);
-      
-      return {
-        ...product,
-        salesCount: product.salesCount + soldQuantity
-      };
+      const cartItem = cart.find(item => item.id === product.id);
+      if (cartItem) {
+        return { ...product, salesCount: product.salesCount + cartItem.quantity };
+      }
+      return product;
     });
-
+    
     setProducts(updatedProducts);
     setCart([]);
-    
-    toast({
-      title: "Продажа завершена",
-      description: `Сумма: ${getTotalPrice()}₽`,
-    });
+    toast({ title: 'Продажа завершена' });
   };
 
-  const getTotalPrice = () => {
-    return cart.reduce((sum, item) => sum + (item.customPrice || item.price) * item.quantity, 0).toFixed(2);
-  };
-
-  const exportSales = () => {
-    const categoryNames = {
-      pies: 'Пирожки и Хлеб',
-      coffee: 'Кофе и Чай',
-      sweets: 'Сладкое',
-      kitchen: 'Кухня',
-      drinks: 'Напитки'
-    };
-
-    const csvContent = [
-      ['Категория', 'Товар', 'Продано', 'Цена'],
-      ...products.map(p => [
-        categoryNames[p.category],
-        p.name,
-        p.salesCount,
-        p.price
-      ])
-    ].map(row => row.join(',')).join('\n');
-
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `sales-${new Date().toLocaleDateString()}.csv`;
-    link.click();
-
-    toast({
-      title: "Экспорт выполнен",
-      description: "Данные о продажах сохранены",
-    });
-  };
-
-  const handleEditProduct = (product: Product) => {
-    setEditingProduct({ ...product });
-    setEditProductDialog(true);
-  };
-
-  const saveProductEdit = () => {
-    if (!editingProduct) return;
-
-    setProducts(products.map(p => p.id === editingProduct.id ? editingProduct : p));
-    setEditProductDialog(false);
-    setEditingProduct(null);
-    
-    toast({
-      title: "Товар обновлен",
-      description: "Изменения сохранены",
-    });
-  };
-
-  const handleAddProduct = () => {
+  const addNewProduct = () => {
     if (!newProduct.name || !newProduct.price) {
-      toast({
-        title: "Ошибка",
-        description: "Заполните все поля",
-        variant: "destructive"
-      });
+      toast({ title: 'Заполните все поля', variant: 'destructive' });
       return;
     }
-
+    
     const product: Product = {
-      id: `product-${Date.now()}`,
+      id: Date.now().toString(),
       name: newProduct.name,
       category: newProduct.category,
       price: parseFloat(newProduct.price),
       image: newProduct.image,
       salesCount: 0
     };
-
+    
     setProducts([...products, product]);
     setNewProduct({ name: '', category: 'pies', price: '', image: '🍞' });
     setAddProductDialog(false);
-    
-    toast({
-      title: "Товар добавлен",
-      description: `${product.name} добавлен в каталог`,
-    });
+    toast({ title: 'Товар добавлен' });
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, isEdit: boolean) => {
+  const deleteProduct = (id: string) => {
+    setProducts(products.filter(p => p.id !== id));
+    toast({ title: 'Товар удалён' });
+  };
+
+  const updateProduct = () => {
+    if (!editingProduct) return;
+    
+    setProducts(products.map(p => p.id === editingProduct.id ? editingProduct : p));
+    setEditProductDialog(false);
+    setEditingProduct(null);
+    toast({ title: 'Товар обновлён' });
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onloadend = () => {
-      const result = reader.result as string;
-      if (isEdit && editingProduct) {
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      if (editingProduct) {
         setEditingProduct({ ...editingProduct, customImage: result, image: '' });
       } else {
         setNewProduct({ ...newProduct, customImage: result, image: '' });
@@ -362,15 +277,21 @@ const Index = () => {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#1a1410] via-[#2a1f18] to-[#1a1410] relative overflow-hidden">
-        <div className="absolute inset-0 opacity-5 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik0zNiAxOGMzLjMxNCAwIDYgMi42ODYgNiA2cy0yLjY4NiA2LTYgNi02LTIuNjg2LTYtNiAyLjY4Ni02IDYtNiIgc3Ryb2tlPSIjZmZmIiBzdHJva2Utd2lkdGg9IjIiLz48L2c+PC9zdmc+')]"></div>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0a0b1a] via-[#151628] to-[#1a1b35] relative overflow-hidden">
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-20 left-10 w-64 h-64 bg-primary/30 rounded-full blur-3xl animate-float"></div>
+          <div className="absolute bottom-20 right-10 w-96 h-96 bg-primary/20 rounded-full blur-3xl animate-float" style={{ animationDelay: '1s' }}></div>
+        </div>
         
-        <Card className="w-full max-w-md mx-4 bg-[#2a2018]/90 backdrop-blur-sm border-[#d4a574]/20 shadow-2xl animate-scale-in">
-          <CardContent className="pt-8 pb-6">
+        <Card className="w-full max-w-md mx-4 bg-card/50 backdrop-blur-xl border-primary/20 shadow-2xl animate-scale-in relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent"></div>
+          <CardContent className="pt-8 pb-6 relative z-10">
             <div className="text-center mb-8">
-              <div className="text-6xl mb-4">🥖</div>
-              <h1 className="text-4xl font-serif font-bold text-[#d4a574] mb-2">Хлеб Бабушкин</h1>
-              <p className="text-[#e8d5b7]/70">Система учёта продаж</p>
+              <div className="text-7xl mb-4 animate-float">🥖</div>
+              <h1 className="text-5xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent mb-2">
+                Хлеб Бабушкин
+              </h1>
+              <p className="text-muted-foreground">Система учёта продаж</p>
             </div>
 
             <div className="space-y-4">
@@ -381,19 +302,19 @@ const Index = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && handleLogin()}
-                  className="bg-[#1a1410] border-[#d4a574]/30 text-[#e8d5b7] placeholder:text-[#e8d5b7]/40"
+                  className="bg-background/50 border-primary/30 text-foreground placeholder:text-muted-foreground h-12"
                 />
               </div>
               
               <Button 
                 onClick={handleLogin}
-                className="w-full bg-[#d4a574] hover:bg-[#c19563] text-[#1a1410] font-semibold"
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold h-12 shadow-lg hover:shadow-primary/50 transition-all"
               >
                 Открыть смену
               </Button>
             </div>
 
-            <p className="text-xs text-[#e8d5b7]/50 text-center mt-6">
+            <p className="text-xs text-muted-foreground text-center mt-6">
               Пароль по умолчанию: 1234
             </p>
           </CardContent>
@@ -403,16 +324,24 @@ const Index = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#1a1410] via-[#2a1f18] to-[#1a1410] relative pb-6">
-      <div className="absolute inset-0 opacity-5 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik0zNiAxOGMzLjMxNCAwIDYgMi42ODYgNiA2cy0yLjY4NiA2LTYgNi02LTIuNjg2LTYtNiAyLjY4Ni02IDYtNiIgc3Ryb2tlPSIjZmZmIiBzdHJva2Utd2lkdGg9IjIiLz48L2c+PC9zdmc+')]"></div>
+    <div className="min-h-screen bg-gradient-to-br from-[#0a0b1a] via-[#151628] to-[#1a1b35] relative pb-6">
+      <div className="absolute inset-0 opacity-10 pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-primary/30 rounded-full blur-3xl animate-float"></div>
+        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-primary/20 rounded-full blur-3xl animate-float" style={{ animationDelay: '1.5s' }}></div>
+      </div>
 
-      <header className="bg-[#2a2018]/80 backdrop-blur-sm border-b border-[#d4a574]/20 sticky top-0 z-40">
+      <header className="bg-card/30 backdrop-blur-xl border-b border-primary/20 sticky top-0 z-40 shadow-lg">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
-            <div className="text-4xl">🥖</div>
+            <div className="text-5xl animate-float">🥖</div>
             <div>
-              <h1 className="text-2xl font-serif font-bold text-[#d4a574]">Хлеб Бабушкин</h1>
-              <p className="text-sm text-[#e8d5b7]/70">Смена: {sessionDuration}</p>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                Хлеб Бабушкин
+              </h1>
+              <p className="text-sm text-muted-foreground flex items-center gap-2">
+                <Icon name="Clock" size={14} />
+                Смена: {sessionDuration}
+              </p>
             </div>
           </div>
 
@@ -421,34 +350,34 @@ const Index = () => {
               <DialogTrigger asChild>
                 <Button
                   variant="outline"
-                  className="bg-transparent border-[#d4a574]/40 text-[#d4a574] hover:bg-[#d4a574]/10"
+                  className="bg-primary/10 border-primary/40 text-primary hover:bg-primary/20 hover:border-primary/60"
                 >
                   <Icon name="Plus" className="mr-2 h-4 w-4" />
                   Товар
                 </Button>
               </DialogTrigger>
-              <DialogContent className="bg-[#2a2018] border-[#d4a574]/30">
+              <DialogContent className="bg-card/95 backdrop-blur-xl border-primary/30">
                 <DialogHeader>
-                  <DialogTitle className="text-[#d4a574] font-serif">Добавить товар</DialogTitle>
+                  <DialogTitle className="text-primary">Добавить товар</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
                   <div>
-                    <Label className="text-[#e8d5b7]">Название</Label>
+                    <Label className="text-foreground">Название</Label>
                     <Input
                       value={newProduct.name}
                       onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
-                      className="bg-[#1a1410] border-[#d4a574]/30 text-[#e8d5b7]"
+                      className="bg-background/50 border-primary/30 text-foreground"
                     />
                   </div>
                   <div>
-                    <Label className="text-[#e8d5b7]">Категория</Label>
+                    <Label className="text-foreground">Категория</Label>
                     <Select value={newProduct.category} onValueChange={(v: any) => setNewProduct({ ...newProduct, category: v })}>
-                      <SelectTrigger className="bg-[#1a1410] border-[#d4a574]/30 text-[#e8d5b7]">
+                      <SelectTrigger className="bg-background/50 border-primary/30 text-foreground">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="bg-[#2a2018] border-[#d4a574]/30">
+                      <SelectContent className="bg-card border-primary/30">
                         {CATEGORIES.map(cat => (
-                          <SelectItem key={cat.id} value={cat.id} className="text-[#e8d5b7]">
+                          <SelectItem key={cat.id} value={cat.id} className="text-foreground">
                             {cat.label}
                           </SelectItem>
                         ))}
@@ -456,43 +385,34 @@ const Index = () => {
                     </Select>
                   </div>
                   <div>
-                    <Label className="text-[#e8d5b7]">Цена (₽)</Label>
+                    <Label className="text-foreground">Цена</Label>
                     <Input
                       type="number"
                       value={newProduct.price}
                       onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
-                      className="bg-[#1a1410] border-[#d4a574]/30 text-[#e8d5b7]"
+                      className="bg-background/50 border-primary/30 text-foreground"
                     />
                   </div>
                   <div>
-                    <Label className="text-[#e8d5b7]">Эмодзи или фото</Label>
+                    <Label className="text-foreground">Эмодзи или изображение</Label>
                     <div className="flex gap-2">
                       <Input
                         value={newProduct.image}
                         onChange={(e) => setNewProduct({ ...newProduct, image: e.target.value })}
                         placeholder="🍞"
-                        className="bg-[#1a1410] border-[#d4a574]/30 text-[#e8d5b7] flex-1"
+                        className="bg-background/50 border-primary/30 text-foreground"
                       />
                       <Input
                         type="file"
                         accept="image/*"
-                        onChange={(e) => handleImageUpload(e, false)}
-                        className="hidden"
-                        id="new-image-upload"
+                        onChange={handleImageUpload}
+                        className="bg-background/50 border-primary/30 text-foreground"
                       />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => document.getElementById('new-image-upload')?.click()}
-                        className="border-[#d4a574]/40 text-[#d4a574]"
-                      >
-                        <Icon name="Upload" className="h-4 w-4" />
-                      </Button>
                     </div>
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button onClick={handleAddProduct} className="bg-[#d4a574] hover:bg-[#c19563] text-[#1a1410]">
+                  <Button onClick={addNewProduct} className="bg-primary hover:bg-primary/90 text-primary-foreground">
                     Добавить
                   </Button>
                 </DialogFooter>
@@ -501,332 +421,316 @@ const Index = () => {
 
             <Button
               variant="outline"
-              onClick={exportSales}
-              className="bg-transparent border-[#d4a574]/40 text-[#d4a574] hover:bg-[#d4a574]/10"
-            >
-              <Icon name="Download" className="mr-2 h-4 w-4" />
-              Экспорт
-            </Button>
-            <Button
-              variant="outline"
               onClick={handleLogout}
-              className="bg-transparent border-[#d4a574]/40 text-[#d4a574] hover:bg-[#d4a574]/10"
+              className="bg-destructive/10 border-destructive/40 text-destructive hover:bg-destructive/20"
             >
-              <Icon name="LogOut" className="h-4 w-4" />
+              <Icon name="LogOut" className="mr-2 h-4 w-4" />
+              Закрыть смену
             </Button>
           </div>
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-6">
-        {showCategoryHome ? (
-          <div className="min-h-[80vh] flex flex-col items-center justify-center">
-            <div className="text-center mb-12 animate-fade-in">
-              <div className="text-7xl mb-4">🥖</div>
-              <h2 className="text-4xl font-serif font-bold text-[#d4a574] mb-2">Выберите категорию</h2>
-              <p className="text-[#e8d5b7]/70">Нажмите на категорию для начала работы</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 w-full max-w-5xl">
-              {CATEGORIES.map((category, index) => (
-                <Card
-                  key={category.id}
-                  onClick={() => handleCategorySelect(category.id as any)}
-                  className="bg-[#2a2018]/90 border-[#d4a574]/30 hover:border-[#d4a574] cursor-pointer transition-all hover:scale-105 animate-fade-in group"
-                  style={{ animationDelay: `${index * 100}ms` }}
-                >
-                  <CardContent className="p-8 text-center">
-                    <div className="text-7xl mb-4 group-hover:scale-110 transition-transform">{category.emoji}</div>
-                    <h3 className="text-2xl font-serif font-bold text-[#d4a574] mb-2">
-                      {category.label.replace(/[🍽️☕🍰🍔🥤]\s*/, '')}
-                    </h3>
-                    <Badge variant="outline" className="border-[#d4a574]/40 text-[#d4a574]">
-                      {products.filter(p => p.category === category.id).length} товаров
-                    </Badge>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-
-            <Button
-              onClick={() => handleCategorySelect('all')}
-              variant="outline"
-              className="mt-8 border-[#d4a574]/40 text-[#d4a574] hover:bg-[#d4a574]/10 px-8 py-6 text-lg"
-            >
-              <Icon name="Package" className="mr-2 h-5 w-5" />
-              Показать все товары
-            </Button>
-          </div>
-        ) : (
-          <>
-            <div className="flex items-center gap-3 mb-6">
-              <Button
-                onClick={() => setShowCategoryHome(true)}
-                variant="outline"
-                className="border-[#d4a574]/40 text-[#d4a574] hover:bg-[#d4a574]/10"
-              >
-                <Icon name="ArrowLeft" className="mr-2 h-4 w-4" />
-                К категориям
-              </Button>
-
-              <div className="flex gap-2 flex-wrap flex-1">
-                <Button
-                  onClick={() => setSelectedCategory('all')}
-                  variant={selectedCategory === 'all' ? 'default' : 'outline'}
-                  className={selectedCategory === 'all' 
-                    ? 'bg-[#d4a574] hover:bg-[#c19563] text-[#1a1410]'
-                    : 'border-[#d4a574]/40 text-[#d4a574] hover:bg-[#d4a574]/10'
-                  }
-                >
-                  Все
-                </Button>
-                {CATEGORIES.map((category) => (
-                  <Button
-                    key={category.id}
-                    onClick={() => setSelectedCategory(category.id as any)}
-                    variant={selectedCategory === category.id ? 'default' : 'outline'}
-                    className={selectedCategory === category.id
-                      ? 'bg-[#d4a574] hover:bg-[#c19563] text-[#1a1410]'
-                      : 'border-[#d4a574]/40 text-[#d4a574] hover:bg-[#d4a574]/10'
-                    }
-                  >
-                    {category.emoji} {category.label.replace(/[🍽️☕🍰🍔🥤]\s*/, '')}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2">
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              {filteredProducts.map((product) => (
-                <Card
-                  key={product.id}
-                  className="bg-[#2a2018]/80 backdrop-blur-sm border-[#d4a574]/20 hover:border-[#d4a574]/50 transition-all hover:scale-105 animate-fade-in group relative"
-                >
-                  <CardContent className="p-4">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleEditProduct(product)}
-                      className="absolute top-2 right-2 h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-[#d4a574] hover:bg-[#d4a574]/20"
+      <div className="container mx-auto px-4 pt-6">
+        <div className="grid lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-6">
+            {showCategoryHome ? (
+              <div className="animate-slide-up">
+                <h2 className="text-3xl font-bold mb-6 bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                  Выберите категорию
+                </h2>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {CATEGORIES.map((cat, index) => (
+                    <Card 
+                      key={cat.id}
+                      onClick={() => handleCategorySelect(cat.id as any)}
+                      className="cursor-pointer bg-card/50 backdrop-blur-sm border-primary/20 hover:border-primary/50 hover:bg-card/70 transition-all group hover:shadow-lg hover:shadow-primary/20 animate-scale-in"
+                      style={{ animationDelay: `${index * 0.1}s` }}
                     >
-                      <Icon name="Pencil" className="h-4 w-4" />
-                    </Button>
+                      <CardContent className="p-8 text-center">
+                        <div className="text-6xl mb-4 group-hover:scale-110 transition-transform">{cat.emoji}</div>
+                        <h3 className="font-semibold text-lg text-foreground group-hover:text-primary transition-colors">
+                          {cat.label.replace(cat.emoji + ' ', '')}
+                        </h3>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="animate-slide-up">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-3xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                    {selectedCategory === 'all' ? 'Все товары' : CATEGORIES.find(c => c.id === selectedCategory)?.label}
+                  </h2>
+                  <Button 
+                    variant="outline"
+                    onClick={() => setShowCategoryHome(true)}
+                    className="bg-primary/10 border-primary/40 text-primary hover:bg-primary/20"
+                  >
+                    <Icon name="ArrowLeft" className="mr-2 h-4 w-4" />
+                    К категориям
+                  </Button>
+                </div>
 
-                    {product.customImage ? (
-                      <img src={product.customImage} alt={product.name} className="w-full h-20 object-cover rounded mb-3" />
-                    ) : (
-                      <div className="text-5xl mb-3 text-center group-hover:scale-110 transition-transform">
-                        {product.image}
-                      </div>
-                    )}
-
-                    <h3 className="font-serif text-lg text-[#e8d5b7] mb-2 text-center min-h-[3.5rem] flex items-center justify-center">
-                      {product.name}
-                    </h3>
-                    <div className="flex items-center justify-between mb-3">
-                      <span className="text-[#d4a574] font-bold">{product.price}₽</span>
-                      <Badge variant="outline" className="border-[#d4a574]/40 text-[#d4a574]">
-                        {product.salesCount}
-                      </Badge>
-                    </div>
-
-                    {product.category === 'coffee' && product.id !== '21' && product.id !== '23' ? (
-                      <Dialog>
-                        <DialogTrigger asChild>
-                          <Button className="w-full bg-[#d4a574] hover:bg-[#c19563] text-[#1a1410]">
-                            <Icon name="Plus" className="h-4 w-4 mr-1" />
-                            Добавить
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent className="bg-[#2a2018] border-[#d4a574]/30">
-                          <DialogHeader>
-                            <DialogTitle className="text-[#d4a574] font-serif">Выберите объём</DialogTitle>
-                          </DialogHeader>
-                          <div className="space-y-3">
-                            {Object.entries(COFFEE_SIZES).map(([size, info]) => (
-                              <Button
-                                key={size}
-                                onClick={() => addToCart(product, size as any)}
-                                className="w-full bg-[#d4a574]/20 hover:bg-[#d4a574] text-[#e8d5b7] hover:text-[#1a1410] border border-[#d4a574]/40"
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                  {filteredProducts.map((product, index) => (
+                    <Card 
+                      key={product.id}
+                      className="bg-card/50 backdrop-blur-sm border-primary/20 hover:border-primary/40 transition-all hover:shadow-lg hover:shadow-primary/10 group animate-scale-in"
+                      style={{ animationDelay: `${index * 0.05}s` }}
+                    >
+                      <CardContent className="p-4">
+                        <div className="flex justify-between items-start mb-3">
+                          {product.customImage ? (
+                            <img src={product.customImage} alt={product.name} className="w-12 h-12 object-cover rounded-lg" />
+                          ) : (
+                            <div className="text-4xl group-hover:scale-110 transition-transform">{product.image}</div>
+                          )}
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => setEditingProduct(product)}
+                                className="text-muted-foreground hover:text-primary"
                               >
-                                {info.label} — {(product.price * info.multiplier).toFixed(0)}₽
+                                <Icon name="Settings" size={16} />
                               </Button>
-                            ))}
-                          </div>
-                        </DialogContent>
-                      </Dialog>
-                    ) : (
-                      <Button
-                        onClick={() => addToCart(product)}
-                        className="w-full bg-[#d4a574] hover:bg-[#c19563] text-[#1a1410]"
-                      >
-                        <Icon name="Plus" className="h-4 w-4 mr-1" />
-                        Добавить
-                      </Button>
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                            </DialogTrigger>
+                            <DialogContent className="bg-card/95 backdrop-blur-xl border-primary/30">
+                              <DialogHeader>
+                                <DialogTitle className="text-primary">Редактировать товар</DialogTitle>
+                              </DialogHeader>
+                              {editingProduct && (
+                                <div className="space-y-4">
+                                  <div>
+                                    <Label className="text-foreground">Название</Label>
+                                    <Input
+                                      value={editingProduct.name}
+                                      onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
+                                      className="bg-background/50 border-primary/30 text-foreground"
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label className="text-foreground">Цена</Label>
+                                    <Input
+                                      type="number"
+                                      value={editingProduct.price}
+                                      onChange={(e) => setEditingProduct({ ...editingProduct, price: parseFloat(e.target.value) })}
+                                      className="bg-background/50 border-primary/30 text-foreground"
+                                    />
+                                  </div>
+                                  <div>
+                                    <Label className="text-foreground">Эмодзи</Label>
+                                    <Input
+                                      value={editingProduct.image}
+                                      onChange={(e) => setEditingProduct({ ...editingProduct, image: e.target.value })}
+                                      className="bg-background/50 border-primary/30 text-foreground"
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                              <DialogFooter className="gap-2">
+                                <Button 
+                                  variant="destructive" 
+                                  onClick={() => {
+                                    if (editingProduct) deleteProduct(editingProduct.id);
+                                  }}
+                                >
+                                  Удалить
+                                </Button>
+                                <Button onClick={updateProduct} className="bg-primary hover:bg-primary/90 text-primary-foreground">
+                                  Сохранить
+                                </Button>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
+                        </div>
+                        
+                        <h3 className="font-semibold text-sm mb-2 text-foreground line-clamp-2">{product.name}</h3>
+                        <div className="flex items-center justify-between">
+                          <span className="text-lg font-bold text-primary">{product.price}₽</span>
+                          {product.salesCount > 0 && (
+                            <Badge variant="secondary" className="text-xs bg-primary/20 text-primary border-primary/30">
+                              {product.salesCount} шт
+                            </Badge>
+                          )}
+                        </div>
+                        
+                        <Button 
+                          onClick={() => addToCart(product)}
+                          className="w-full mt-3 bg-primary/20 hover:bg-primary/30 text-primary border border-primary/40 hover:border-primary/60"
+                          size="sm"
+                        >
+                          <Icon name="Plus" className="mr-1" size={14} />
+                          В корзину
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="lg:col-span-1">
-            <Card className="bg-[#2a2018]/90 backdrop-blur-sm border-[#d4a574]/30 sticky top-24">
+            <Card className="sticky top-24 bg-card/50 backdrop-blur-xl border-primary/20 shadow-xl">
               <CardContent className="p-6">
-                <h2 className="text-2xl font-serif font-bold text-[#d4a574] mb-4">Корзина</h2>
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold text-primary flex items-center gap-2">
+                    <Icon name="ShoppingCart" size={24} />
+                    Корзина
+                  </h2>
+                  <Badge variant="secondary" className="bg-primary/20 text-primary border-primary/30">
+                    {cart.length}
+                  </Badge>
+                </div>
 
-                {cart.length === 0 ? (
-                  <div className="text-center py-8 text-[#e8d5b7]/50">
-                    <Icon name="ShoppingCart" className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                    <p>Корзина пуста</p>
-                  </div>
-                ) : (
-                  <>
-                    <div className="space-y-3 mb-4 max-h-96 overflow-y-auto">
-                      {cart.map((item, idx) => (
-                        <div key={idx} className="flex items-center justify-between bg-[#1a1410]/50 p-3 rounded-lg border border-[#d4a574]/20">
-                          <div className="flex-1">
-                            <p className="text-[#e8d5b7] font-medium text-sm">{item.name}</p>
-                            {item.coffeeSize && (
-                              <p className="text-xs text-[#d4a574]">
-                                {COFFEE_SIZES[item.coffeeSize].label}
-                              </p>
+                <div className="space-y-3 mb-6 max-h-96 overflow-y-auto">
+                  {cart.map((item) => {
+                    const basePrice = item.coffeeSize && item.category === 'coffee'
+                      ? item.price * COFFEE_SIZES[item.coffeeSize].multiplier
+                      : item.price;
+                    const finalPrice = item.customPrice || basePrice;
+
+                    return (
+                      <Card key={item.id} className="bg-background/50 border-primary/20">
+                        <CardContent className="p-3">
+                          <div className="flex items-start gap-3">
+                            {item.customImage ? (
+                              <img src={item.customImage} alt={item.name} className="w-10 h-10 object-cover rounded" />
+                            ) : (
+                              <div className="text-2xl">{item.image}</div>
                             )}
-                            <p className="text-sm text-[#e8d5b7]/70">
-                              {item.quantity} × {(item.customPrice || item.price).toFixed(2)}₽
-                            </p>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-sm font-semibold text-foreground line-clamp-1">{item.name}</h4>
+                              <div className="flex items-center gap-2 mt-1">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => removeFromCart(item.id)}
+                                  className="h-6 w-6 p-0 bg-background/50 border-primary/30 text-primary hover:bg-primary/20"
+                                >
+                                  <Icon name="Minus" size={12} />
+                                </Button>
+                                <span className="text-sm font-bold text-primary">{item.quantity}</span>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => addToCart(item)}
+                                  className="h-6 w-6 p-0 bg-background/50 border-primary/30 text-primary hover:bg-primary/20"
+                                >
+                                  <Icon name="Plus" size={12} />
+                                </Button>
+                              </div>
+                              
+                              {item.category === 'coffee' && (
+                                <div className="flex gap-1 mt-2">
+                                  {Object.entries(COFFEE_SIZES).map(([size, data]) => (
+                                    <Button
+                                      key={size}
+                                      size="sm"
+                                      variant={item.coffeeSize === size ? "default" : "outline"}
+                                      onClick={() => setCoffeeSize(item.id, size as any)}
+                                      className={`h-6 text-xs px-2 ${
+                                        item.coffeeSize === size 
+                                          ? 'bg-primary text-primary-foreground' 
+                                          : 'bg-background/50 border-primary/30 text-foreground hover:bg-primary/20'
+                                      }`}
+                                    >
+                                      {data.label}
+                                    </Button>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <div className="text-sm font-bold text-primary">{(finalPrice * item.quantity).toFixed(0)}₽</div>
+                              <Dialog>
+                                <DialogTrigger asChild>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="h-6 mt-1 text-xs text-muted-foreground hover:text-primary"
+                                  >
+                                    <Icon name="Edit" size={12} />
+                                  </Button>
+                                </DialogTrigger>
+                                <DialogContent className="bg-card/95 backdrop-blur-xl border-primary/30">
+                                  <DialogHeader>
+                                    <DialogTitle className="text-primary">Изменить цену</DialogTitle>
+                                  </DialogHeader>
+                                  <div className="space-y-4">
+                                    <div>
+                                      <Label className="text-foreground">Новая цена</Label>
+                                      <Input
+                                        type="number"
+                                        placeholder={basePrice.toString()}
+                                        value={customPrice}
+                                        onChange={(e) => setCustomPrice(e.target.value)}
+                                        className="bg-background/50 border-primary/30 text-foreground"
+                                      />
+                                    </div>
+                                  </div>
+                                  <DialogFooter>
+                                    <Button 
+                                      onClick={() => {
+                                        if (customPrice) {
+                                          setItemCustomPrice(item.id, parseFloat(customPrice));
+                                          setCustomPrice('');
+                                        }
+                                      }}
+                                      className="bg-primary hover:bg-primary/90 text-primary-foreground"
+                                    >
+                                      Применить
+                                    </Button>
+                                  </DialogFooter>
+                                </DialogContent>
+                              </Dialog>
+                            </div>
                           </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setCart(cart.filter((_, i) => i !== idx))}
-                            className="text-[#d4a574] hover:text-[#c19563] hover:bg-[#d4a574]/10"
-                          >
-                            <Icon name="X" className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
 
-                    <div className="border-t border-[#d4a574]/30 pt-4 mb-4">
-                      <div className="flex justify-between items-center text-xl font-bold">
-                        <span className="text-[#e8d5b7]">Итого:</span>
-                        <span className="text-[#d4a574]">{getTotalPrice()}₽</span>
-                      </div>
-                    </div>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between text-xl font-bold pb-4 border-t border-primary/20 pt-4">
+                    <span className="text-foreground">Итого:</span>
+                    <span className="text-primary">
+                      {cart.reduce((sum, item) => {
+                        const price = item.customPrice || (item.coffeeSize && item.category === 'coffee' ? item.price * COFFEE_SIZES[item.coffeeSize].multiplier : item.price);
+                        return sum + (price * item.quantity);
+                      }, 0).toFixed(0)}₽
+                    </span>
+                  </div>
 
-                    <Button
-                      onClick={completeSale}
-                      className="w-full bg-[#d4a574] hover:bg-[#c19563] text-[#1a1410] font-bold py-6 text-lg"
-                    >
-                      <Icon name="Check" className="mr-2 h-5 w-5" />
-                      Завершить продажу
-                    </Button>
-                  </>
-                )}
-
-                <Dialog open={customPriceDialog} onOpenChange={setCustomPriceDialog}>
-                  <DialogTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="w-full mt-3 border-[#d4a574]/40 text-[#d4a574] hover:bg-[#d4a574]/10"
-                    >
-                      <Icon name="Coins" className="mr-2 h-4 w-4" />
-                      Свободная цена
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent className="bg-[#2a2018] border-[#d4a574]/30">
-                    <DialogHeader>
-                      <DialogTitle className="text-[#d4a574] font-serif">Введите цену</DialogTitle>
-                    </DialogHeader>
-                    <div className="space-y-4">
-                      <Input
-                        type="number"
-                        placeholder="Введите сумму"
-                        value={customPrice}
-                        onChange={(e) => setCustomPrice(e.target.value)}
-                        className="bg-[#1a1410] border-[#d4a574]/30 text-[#e8d5b7]"
-                      />
-                      <Button
-                        onClick={addCustomPriceItem}
-                        className="w-full bg-[#d4a574] hover:bg-[#c19563] text-[#1a1410]"
-                      >
-                        Добавить в корзину
-                      </Button>
-                    </div>
-                  </DialogContent>
-                </Dialog>
+                  <Button
+                    onClick={completeSale}
+                    disabled={cart.length === 0}
+                    className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold h-12 shadow-lg hover:shadow-primary/50 disabled:opacity-50"
+                  >
+                    <Icon name="Check" className="mr-2" size={20} />
+                    Завершить продажу
+                  </Button>
+                  
+                  <Button
+                    onClick={() => setCart([])}
+                    disabled={cart.length === 0}
+                    variant="outline"
+                    className="w-full bg-destructive/10 border-destructive/40 text-destructive hover:bg-destructive/20"
+                  >
+                    <Icon name="Trash2" className="mr-2" size={16} />
+                    Очистить корзину
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </div>
         </div>
-        </>
-        )}
       </div>
-
-      <Dialog open={editProductDialog} onOpenChange={setEditProductDialog}>
-        <DialogContent className="bg-[#2a2018] border-[#d4a574]/30">
-          <DialogHeader>
-            <DialogTitle className="text-[#d4a574] font-serif">Редактировать товар</DialogTitle>
-          </DialogHeader>
-          {editingProduct && (
-            <div className="space-y-4">
-              <div>
-                <Label className="text-[#e8d5b7]">Название</Label>
-                <Input
-                  value={editingProduct.name}
-                  onChange={(e) => setEditingProduct({ ...editingProduct, name: e.target.value })}
-                  className="bg-[#1a1410] border-[#d4a574]/30 text-[#e8d5b7]"
-                />
-              </div>
-              <div>
-                <Label className="text-[#e8d5b7]">Цена (₽)</Label>
-                <Input
-                  type="number"
-                  value={editingProduct.price}
-                  onChange={(e) => setEditingProduct({ ...editingProduct, price: parseFloat(e.target.value) })}
-                  className="bg-[#1a1410] border-[#d4a574]/30 text-[#e8d5b7]"
-                />
-              </div>
-              <div>
-                <Label className="text-[#e8d5b7]">Эмодзи или фото</Label>
-                <div className="flex gap-2">
-                  <Input
-                    value={editingProduct.image}
-                    onChange={(e) => setEditingProduct({ ...editingProduct, image: e.target.value })}
-                    className="bg-[#1a1410] border-[#d4a574]/30 text-[#e8d5b7] flex-1"
-                  />
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleImageUpload(e, true)}
-                    className="hidden"
-                    id="edit-image-upload"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => document.getElementById('edit-image-upload')?.click()}
-                    className="border-[#d4a574]/40 text-[#d4a574]"
-                  >
-                    <Icon name="Upload" className="h-4 w-4" />
-                  </Button>
-                </div>
-                {editingProduct.customImage && (
-                  <img src={editingProduct.customImage} alt="Preview" className="mt-2 w-20 h-20 object-cover rounded" />
-                )}
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button onClick={saveProductEdit} className="bg-[#d4a574] hover:bg-[#c19563] text-[#1a1410]">
-              Сохранить
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
