@@ -1124,7 +1124,14 @@ const Index = () => {
           <PaymentMethodDialog
             open={paymentMethodDialog}
             onOpenChange={setPaymentMethodDialog}
-            onSelectPayment={finalizeSale}
+            onSelect={finalizeSale}
+            total={activeCart.items.reduce((sum, item) => {
+              const basePrice = item.coffeeSize && item.category === 'coffee'
+                ? item.price * COFFEE_SIZES[item.coffeeSize].multiplier
+                : item.price;
+              const finalPrice = item.customPrice || basePrice;
+              return sum + (finalPrice * item.quantity);
+            }, 0)}
           />
           
           <EndShiftDialog
