@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Cormorant:wght@400;500;600;700&family=Montserrat:wght@300;400;500;600&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap");
 
 @tailwind base;
 @tailwind components;
@@ -6,44 +6,35 @@
 
 @layer base {
   :root {
-    --background: 220 30% 8%;
-    --foreground: 0 0% 95%;
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
 
-    --card: 220 25% 12%;
-    --card-foreground: 0 0% 95%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
 
-    --popover: 220 25% 12%;
-    --popover-foreground: 0 0% 95%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
 
-    --primary: 265 80% 65%;
+    --primary: 16 100% 55%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 220 20% 20%;
-    --secondary-foreground: 0 0% 95%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
 
-    --muted: 220 15% 18%;
-    --muted-foreground: 0 0% 65%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
 
-    --accent: 265 80% 65%;
+    --accent: 16 100% 55%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 220 20% 25%;
-    --input: 220 20% 18%;
-    --ring: 265 80% 65%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 16 100% 55%;
 
     --radius: 0.75rem;
-
-    --sidebar-background: 220 25% 12%;
-    --sidebar-foreground: 0 0% 95%;
-    --sidebar-primary: 265 80% 65%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 220 20% 20%;
-    --sidebar-accent-foreground: 0 0% 95%;
-    --sidebar-border: 220 20% 25%;
-    --sidebar-ring: 265 80% 65%;
   }
 }
 
@@ -54,15 +45,48 @@
 
   body {
     @apply bg-background text-foreground;
-    font-family: "Montserrat", sans-serif;
+    font-family: "Inter", sans-serif;
   }
+}
 
-  h1,
-  h2,
-  h3,
-  h4,
-  h5,
-  h6 {
-    font-family: "Cormorant", serif;
+.category-card {
+  transition: all 0.3s ease;
+}
+
+.category-card:hover {
+  transform: translateY(-4px);
+}
+
+.drag-handle {
+  cursor: grab;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+.dragging {
+  opacity: 0.5;
+}
+
+.fly-animation {
+  position: fixed;
+  pointer-events: none;
+  z-index: 9999;
+  animation: flyToCart 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+@keyframes flyToCart {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: translate(var(--x-mid), var(--y-mid)) scale(0.8);
+    opacity: 0.8;
+  }
+  100% {
+    transform: translate(var(--x-end), var(--y-end)) scale(0.3);
+    opacity: 0;
   }
 }
