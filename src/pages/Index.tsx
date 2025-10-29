@@ -281,7 +281,14 @@ const Index = () => {
         ? sales.filter(s => s.timestamp >= sessionStartTime)
         : sales;
       
-      const sessionRevenue = sessionSales.reduce((sum, s) => sum + s.total, 0);
+      const sessionWriteOffs = sessionStartTime 
+        ? writeOffs.filter(w => w.timestamp >= sessionStartTime)
+        : writeOffs;
+
+      const salesTotal = sessionSales.reduce((sum, s) => sum + s.total, 0);
+      const writeOffsTotal = sessionWriteOffs.reduce((sum, w) => sum + w.totalAmount, 0);
+      const sessionRevenue = salesTotal - writeOffsTotal;
+      
       const sessionItemsCount = sessionSales.reduce((sum, s) => 
         sum + s.items.reduce((iSum, i) => iSum + i.quantity, 0), 0
       );
@@ -291,20 +298,34 @@ const Index = () => {
         .sort((a, b) => b.salesCount - a.salesCount)
         .slice(0, 5);
 
-      const reportText = `📊 ОТЧЁТ О ПРОДАЖАХ\n\n` +
+      let reportText = `📊 ОТЧЁТ О ПРОДАЖАХ\n\n` +
         `💼 Хлеб Бабушкин\n` +
         `👤 Кассир: ${currentUser?.name}\n` +
         `📅 Дата: ${new Date().toLocaleDateString('ru-RU')}\n` +
         `⏰ Время: ${new Date().toLocaleTimeString('ru-RU')}\n\n` +
         `━━━━━━━━━━━━━━━━━━━━\n\n` +
         `💰 Выручка за смену: ${sessionRevenue} ₽\n` +
-        `📦 Продано товаров: ${sessionItemsCount} шт\n` +
+        `   Продажи: ${salesTotal} ₽\n`;
+      
+      if (writeOffsTotal > 0) {
+        reportText += `   Списания: -${writeOffsTotal} ₽\n`;
+      }
+      
+      reportText += `📦 Продано товаров: ${sessionItemsCount} шт\n` +
         `🛋️ Количество продаж: ${sessionSales.length}\n\n` +
         `━━━━━━━━━━━━━━━━━━━━\n\n` +
         `🏆 ТОП-5 ТОВАРОВ:\n` +
         topProducts.map((p, i) => 
           `${i + 1}. ${p.name} - ${p.salesCount} шт`
         ).join('\n');
+      
+      if (sessionWriteOffs.length > 0) {
+        reportText += `\n\n━━━━━━━━━━━━━━━━━━━━\n\n` +
+          `📋 СПИСАНИЯ (${sessionWriteOffs.length}):\n` +
+          sessionWriteOffs.map((w) => 
+            `${w.productName} - ${w.quantity} шт (${w.totalAmount} ₽)\n   Причина: ${w.reason}`
+          ).join('\n');
+      }
 
       const response = await fetch('https://functions.poehali.dev/c8e9896a-524b-4164-912d-ec49d9af0f35', {
         method: 'POST',
