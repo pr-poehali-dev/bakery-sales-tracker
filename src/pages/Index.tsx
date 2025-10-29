@@ -285,13 +285,22 @@ const Index = () => {
         ? writeOffs.filter(w => w.timestamp >= sessionStartTime)
         : writeOffs;
 
-      const salesTotal = sessionSales.reduce((sum, s) => sum + s.total, 0);
+      const notReturnedSales = sessionSales.filter(s => !s.returned);
+      const returnedSales = sessionSales.filter(s => s.returned);
+
+      const salesTotal = notReturnedSales.reduce((sum, s) => sum + s.total, 0);
+      const returnsTotal = returnedSales.reduce((sum, s) => sum + s.total, 0);
       const writeOffsTotal = sessionWriteOffs.reduce((sum, w) => sum + w.totalAmount, 0);
       const sessionRevenue = salesTotal - writeOffsTotal;
       
-      const sessionItemsCount = sessionSales.reduce((sum, s) => 
+      const sessionItemsCount = notReturnedSales.reduce((sum, s) => 
         sum + s.items.reduce((iSum, i) => iSum + i.quantity, 0), 0
       );
+
+      const cashRevenue = notReturnedSales.filter(s => s.paymentMethod === 'cash').reduce((sum, s) => sum + s.total, 0);
+      const cardRevenue = notReturnedSales.filter(s => s.paymentMethod === 'card').reduce((sum, s) => sum + s.total, 0);
+      const cashReturns = returnedSales.filter(s => s.paymentMethod === 'cash').reduce((sum, s) => sum + s.total, 0);
+      const cardReturns = returnedSales.filter(s => s.paymentMethod === 'card').reduce((sum, s) => sum + s.total, 0);
 
       const topProducts = products
         .filter(p => p.salesCount > 0)
@@ -307,13 +316,31 @@ const Index = () => {
         `💰 Выручка за смену: ${sessionRevenue} ₽\n` +
         `   Продажи: ${salesTotal} ₽\n`;
       
+      if (returnsTotal > 0) {
+        reportText += `   Возвраты: -${returnsTotal} ₽\n`;
+      }
+      
       if (writeOffsTotal > 0) {
         reportText += `   Списания: -${writeOffsTotal} ₽\n`;
       }
       
-      reportText += `📦 Продано товаров: ${sessionItemsCount} шт\n` +
-        `🛋️ Количество продаж: ${sessionSales.length}\n\n` +
-        `━━━━━━━━━━━━━━━━━━━━\n\n` +
+      reportText += `\n💵 Наличные: ${cashRevenue} ₽`;
+      if (cashReturns > 0) {
+        reportText += ` (-${cashReturns} ₽ возврат)`;
+      }
+      reportText += `\n💳 Безналичные: ${cardRevenue} ₽`;
+      if (cardReturns > 0) {
+        reportText += ` (-${cardReturns} ₽ возврат)`;
+      }
+      
+      reportText += `\n\n📦 Продано товаров: ${sessionItemsCount} шт\n` +
+        `🛋️ Количество продаж: ${notReturnedSales.length}\n`;
+      
+      if (returnedSales.length > 0) {
+        reportText += `🔙 Возвратов: ${returnedSales.length}\n`;
+      }
+      
+      reportText += `\n━━━━━━━━━━━━━━━━━━━━\n\n` +
         `🏆 ТОП-5 ТОВАРОВ:\n` +
         topProducts.map((p, i) => 
           `${i + 1}. ${p.name} - ${p.salesCount} шт`
@@ -787,11 +814,23 @@ const Index = () => {
         {sessionStartTime && (() => {
           const sessionSales = sales.filter(s => s.timestamp >= sessionStartTime);
           const sessionWriteOffs = writeOffs.filter(w => w.timestamp >= sessionStartTime);
+          
+          const notReturnedSales = sessionSales.filter(s => !s.returned);
+          const returnedSales = sessionSales.filter(s => s.returned);
+          
+          const salesTotal = notReturnedSales.reduce((sum, s) => sum + s.total, 0);
+          const returnsTotal = returnedSales.reduce((sum, s) => sum + s.total, 0);
           const writeOffsTotal = sessionWriteOffs.reduce((sum, w) => sum + w.totalAmount, 0);
-          const sessionRevenue = sessionSales.reduce((sum, s) => sum + s.total, 0) - writeOffsTotal;
-          const sessionItemsCount = sessionSales.reduce((sum, s) => 
+          const sessionRevenue = salesTotal - writeOffsTotal;
+          
+          const sessionItemsCount = notReturnedSales.reduce((sum, s) => 
             sum + s.items.reduce((iSum, i) => iSum + i.quantity, 0), 0
           );
+          
+          const cashRevenue = notReturnedSales.filter(s => s.paymentMethod === 'cash').reduce((sum, s) => sum + s.total, 0);
+          const cardRevenue = notReturnedSales.filter(s => s.paymentMethod === 'card').reduce((sum, s) => sum + s.total, 0);
+          const cashReturns = returnedSales.filter(s => s.paymentMethod === 'cash').reduce((sum, s) => sum + s.total, 0);
+          const cardReturns = returnedSales.filter(s => s.paymentMethod === 'card').reduce((sum, s) => sum + s.total, 0);
           
           return (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -801,9 +840,16 @@ const Index = () => {
                     <div>
                       <p className="text-sm opacity-90 mb-1">Выручка за смену</p>
                       <p className="text-3xl font-bold">{sessionRevenue} ₽</p>
-                      {writeOffsTotal > 0 && (
-                        <p className="text-xs opacity-70 mt-1">Списания: -{writeOffsTotal} ₽</p>
-                      )}
+                      <div className="text-xs opacity-70 mt-1 space-y-0.5">
+                        {returnsTotal > 0 && (
+                          <p>Возвраты: -{returnsTotal} ₽</p>
+                        )}
+                        {writeOffsTotal > 0 && (
+                          <p>Списания: -{writeOffsTotal} ₽</p>
+                        )}
+                        <p>Наличные: {cashRevenue - cashReturns} ₽</p>
+                        <p>Безнал: {cardRevenue - cardReturns} ₽</p>
+                      </div>
                     </div>
                     <Icon name="TrendingUp" size={40} className="opacity-80" />
                   </div>
