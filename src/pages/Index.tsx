@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import Icon from '@/components/ui/icon';
 import { useToast } from '@/hooks/use-toast';
 import { Category, Product, CartItem, Cart, PaymentMethod, User } from '@/types';
-import { authenticateUser, saveSale, getCurrentShiftReport, getTelegramSettings, getUsersFromStorage, getTodaySales } from '@/utils/storage';
+import { authenticateUser, saveSale, getCurrentShiftReport, getTelegramSettings, getUsersFromStorage } from '@/utils/storage';
 import { ChangePasswordDialog } from '@/components/ChangePasswordDialog';
 import { ManageCashiersDialog } from '@/components/ManageCashiersDialog';
 import { PaymentMethodDialog } from '@/components/PaymentMethodDialog';
@@ -86,8 +86,6 @@ const INITIAL_PRODUCTS: Product[] = [
 const Index = () => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const cartRef = useRef<HTMLDivElement | null>(null);
-  const dragItem = useRef<number | null>(null);
-  const dragOverItem = useRef<number | null>(null);
   
   const [isAuthenticated, setIsAuthenticated] = useState(() => localStorage.getItem('bakery-session-active') === 'true');
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
@@ -130,17 +128,18 @@ const Index = () => {
   const [newProduct, setNewProduct] = useState({ name: '', category: 'pies', price: '', image: '🍞', customImage: '' });
   const [newCategory, setNewCategory] = useState({ id: '', label: '', emoji: '📦' });
   const [cartTimers, setCartTimers] = useState<Record<string, string>>({});
+  const [telegramBotToken, setTelegramBotToken] = useState('');
+  const [telegramChatId, setTelegramChatId] = useState('');
   const [selectedItemForCustomPrice, setSelectedItemForCustomPrice] = useState<string | null>(null);
   
   const { toast } = useToast();
   const activeCart = carts.find(c => c.id === activeCartId) || carts[0];
 
-  const todaySales = getTodaySales();
-  const todayRevenue = todaySales.reduce((sum, s) => sum + s.total, 0);
-  const todayItemsCount = todaySales.reduce((sum, s) => sum + s.items.reduce((iSum, i) => iSum + i.quantity, 0), 0);
-
   useEffect(() => {
     audioRef.current = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIF2m98OScTgwOUKrk77RgGwU7k9n0ynsrBSp+zPLaizsKElyx6+mrVxMJR6Hh8r9vIAUrgs/y2Ik2CBdqvfDknE4MDlCq5O+0YBsFO5PZ9Mp8KwUqfszy2os7ChJcsevrq1cTCUeh4fK/byAFK4LP8tiJNggXar3w5JxODA5QquTvtGAbBTuT2fTKfCsFKn7M8tqLOwoSXLHr66tXEwlHoeHyv28gBSuCz/LYiTYIF2q98OScTgwOUKrk77RgGwU7k9n0ynwrBSp+zPLaizsKElyx6+urVxMJR6Hh8r9vIAUrgs/y2Ik2CBdqvfDknE4MDlCq5O+0YBsFO5PZ9Mp8KwUqfszy2os7ChJcsevrq1cTCUeh4fK/byAFK4LP8tiJNggXar3w5JxODA5QquTvtGAbBTuT2fTKfCsFKn7M8tqLOwoSXLHr66tXEwlHoeHyv28gBSuCz/LYiTYIF2q98OScTgwOUKrk77RgGwU7k9n0ynwrBSp+zPLaizsKElyx6+urVxMJR6Hh8r9vIAUrgs/y2Ik2CBdqvfDknE4MDlCq5O+0YBsFO5PZ9Mp8KwUqfszy2os7ChJcsevrq1cTCUeh4fK/byAFK4LP8tiJNggXar3w5JxODA5QquTvtGAbBTuT2fTKfCsFKn7M8tqLOwoSXLHr66tXEwlHoeHyv28gBSuCz/LYiTYIF2q98OScTgwOUKrk77RgGwU7k9n0ynwrBSp+zPLaizsKElyx6+urq1cTCUeh4fK/byAFK4LP8tiJNggXar3w5JxODA==');
+    const settings = getTelegramSettings();
+    setTelegramBotToken(settings.botToken);
+    setTelegramChatId(settings.chatId);
   }, []);
 
   useEffect(() => {
@@ -329,7 +328,7 @@ const Index = () => {
   };
 
   const completeSale = () => {
-    if (!activeCart || activeCart.items.length === 0) {
+    if (activeCart.items.length === 0) {
       toast({ title: 'Корзина пуста', variant: 'destructive' });
       return;
     }
@@ -341,90 +340,78 @@ const Index = () => {
       const basePrice = item.coffeeSize && item.category === 'coffee'
         ? item.price * COFFEE_SIZES[item.coffeeSize].multiplier
         : item.price;
-      const finalPrice = item.customPrice || basePrice;
-      return sum + (finalPrice * item.quantity);
+      return sum + (item.customPrice || basePrice) * item.quantity;
     }, 0);
 
-    if (currentUser && sessionStartTime) {
-      saveSale({
-        id: Date.now().toString(),
-        items: activeCart.items,
-        total,
-        timestamp: Date.now(),
-        cashier: currentUser.name,
-        paymentMethod
-      });
+    saveSale({
+      id: Date.now().toString(),
+      items: activeCart.items,
+      total,
+      timestamp: Date.now(),
+      cashier: currentUser?.name || 'Unknown',
+      paymentMethod
+    });
 
-      activeCart.items.forEach(cartItem => {
-        setProducts(products.map(p =>
-          p.id === cartItem.id ? { ...p, salesCount: (p.salesCount || 0) + cartItem.quantity } : p
-        ));
-      });
+    const updatedProducts = products.map(product => {
+      const cartItem = activeCart.items.find(item => item.id === product.id);
+      if (cartItem) {
+        return { ...product, salesCount: product.salesCount + cartItem.quantity };
+      }
+      return product;
+    });
+    setProducts(updatedProducts);
 
-      setCarts(carts.map(cart =>
-        cart.id === activeCartId
-          ? { ...cart, items: [], createdAt: Date.now() }
-          : cart
-      ));
+    setCarts(carts.map(cart =>
+      cart.id === activeCartId
+        ? { ...cart, items: [], createdAt: Date.now() }
+        : cart
+    ));
 
-      toast({ title: `✅ Продажа завершена! Сумма: ${total} ₽` });
-    }
-  };
-
-  const playSuccessSound = () => {
-    audioRef.current?.play().catch(() => {});
+    playSuccessSound();
+    toast({ title: `✅ Продажа завершена! ${paymentMethod === 'cash' ? '💵 Наличные' : '💳 Карта'}`, description: `Сумма: ${total} ₽` });
   };
 
   const addNewCart = () => {
-    const newId = (carts.length + 1).toString();
+    const newId = (Math.max(...carts.map(c => parseInt(c.id))) + 1).toString();
     setCarts([...carts, { id: newId, name: `Корзина ${newId}`, items: [], createdAt: Date.now() }]);
     setActiveCartId(newId);
   };
 
-  const deleteCart = (id: string) => {
-    if (carts.length === 1) return;
-    const cart = carts.find(c => c.id === id);
-    if (cart && cart.items.length > 0) {
-      toast({ title: 'Корзина не пуста', variant: 'destructive' });
+  const deleteCart = (cartId: string) => {
+    if (carts.length === 1) {
+      toast({ title: 'Нельзя удалить последнюю корзину', variant: 'destructive' });
       return;
     }
-    setCarts(carts.filter(c => c.id !== id));
-    if (activeCartId === id) {
-      setActiveCartId(carts[0].id);
+    setCarts(carts.filter(c => c.id !== cartId));
+    if (activeCartId === cartId) {
+      setActiveCartId(carts.find(c => c.id !== cartId)?.id || '1');
     }
   };
 
-  const saveProduct = () => {
-    if (!editingProduct) return;
-    const price = parseFloat(editingProduct.price.toString());
-    if (!editingProduct.name || isNaN(price) || price <= 0) {
-      toast({ title: 'Заполните все поля корректно', variant: 'destructive' });
-      return;
+  const playSuccessSound = () => {
+    if (audioRef.current) {
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch(() => {});
     }
-    setProducts(products.map(p => p.id === editingProduct.id ? editingProduct : p));
-    setEditProductDialog(false);
-    setEditingProduct(null);
-    toast({ title: '✅ Товар обновлён' });
   };
 
-  const addProduct = () => {
-    const price = parseFloat(newProduct.price);
-    if (!newProduct.name || isNaN(price) || price <= 0) {
-      toast({ title: 'Заполните все поля корректно', variant: 'destructive' });
+  const addNewProduct = () => {
+    if (!newProduct.name || !newProduct.price) {
+      toast({ title: 'Заполните все поля', variant: 'destructive' });
       return;
     }
     const product: Product = {
       id: Date.now().toString(),
       name: newProduct.name,
       category: newProduct.category,
-      price,
+      price: parseFloat(newProduct.price),
       image: newProduct.image,
-      customImage: newProduct.customImage,
-      salesCount: 0
+      salesCount: 0,
+      customImage: newProduct.customImage || undefined
     };
     setProducts([...products, product]);
-    setAddProductDialog(false);
     setNewProduct({ name: '', category: 'pies', price: '', image: '🍞', customImage: '' });
+    setAddProductDialog(false);
     toast({ title: '✅ Товар добавлен' });
   };
 
@@ -433,7 +420,17 @@ const Index = () => {
     toast({ title: '🗑️ Товар удалён' });
   };
 
-  const addCategory = () => {
+  const updateProduct = () => {
+    if (!editingProduct) return;
+    setProducts(products.map(p =>
+      p.id === editingProduct.id ? editingProduct : p
+    ));
+    setEditProductDialog(false);
+    setEditingProduct(null);
+    toast({ title: '✅ Товар обновлён' });
+  };
+
+  const addNewCategory = () => {
     if (!newCategory.id || !newCategory.label) {
       toast({ title: 'Заполните все поля', variant: 'destructive' });
       return;
@@ -443,8 +440,8 @@ const Index = () => {
       return;
     }
     setCategories([...categories, newCategory]);
-    setAddCategoryDialog(false);
     setNewCategory({ id: '', label: '', emoji: '📦' });
+    setAddCategoryDialog(false);
     toast({ title: '✅ Категория добавлена' });
   };
 
@@ -474,40 +471,23 @@ const Index = () => {
     }
   };
 
-  const handleDragStart = (index: number) => {
-    dragItem.current = index;
-  };
-
-  const handleDragEnter = (index: number) => {
-    dragOverItem.current = index;
-  };
-
-  const handleDragEnd = () => {
-    if (dragItem.current === null || dragOverItem.current === null) return;
-
-    const newCategories = [...categories];
-    const draggedItem = newCategories[dragItem.current];
-    newCategories.splice(dragItem.current, 1);
-    newCategories.splice(dragOverItem.current, 0, draggedItem);
-
-    setCategories(newCategories);
-    dragItem.current = null;
-    dragOverItem.current = null;
-  };
-
   const filteredProducts = selectedCategory === 'all'
     ? products
     : products.filter(p => p.category === selectedCategory);
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
-        <Card className="w-full max-w-md shadow-xl">
+      <div className="min-h-screen flex items-center justify-center relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-background via-background to-primary/10" />
+        <div className="absolute top-20 left-20 w-72 h-72 bg-primary/20 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute bottom-20 right-20 w-96 h-96 bg-accent/20 rounded-full blur-3xl animate-pulse delay-1000" />
+        
+        <Card className="w-full max-w-md relative z-10 shadow-2xl">
           <CardContent className="p-8">
             <div className="text-center mb-8">
               <div className="text-6xl mb-4">🍞</div>
-              <h1 className="text-3xl font-bold mb-2">Вход в кассу</h1>
-              <p className="text-muted-foreground">Введите свои данные</p>
+              <h1 className="text-3xl font-bold mb-2">Касса</h1>
+              <p className="text-muted-foreground">Войдите в систему</p>
             </div>
             
             <div className="space-y-4">
@@ -518,7 +498,6 @@ const Index = () => {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-                  className="mt-1"
                 />
               </div>
               <div>
@@ -529,7 +508,6 @@ const Index = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-                  className="mt-1"
                 />
               </div>
               <Button className="w-full" size="lg" onClick={handleLogin}>
@@ -549,51 +527,55 @@ const Index = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
-      <header className="sticky top-0 z-40 bg-white border-b shadow-sm">
-        <div className="container mx-auto px-4 py-3">
+    <div className="min-h-screen relative overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-br from-background via-background to-primary/5" />
+      <div className="absolute top-0 right-0 w-96 h-96 bg-primary/10 rounded-full blur-3xl" />
+      <div className="absolute bottom-0 left-0 w-96 h-96 bg-accent/10 rounded-full blur-3xl" />
+      
+      <header className="sticky top-0 z-40 bg-card/95 backdrop-blur border-b">
+        <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="text-3xl">🍞</div>
+            <div className="flex items-center gap-4">
+              <div className="text-4xl">🍞</div>
               <div>
-                <h1 className="text-xl font-bold">Касса</h1>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <span>⏱️ {sessionDuration}</span>
-                  <span>•</span>
-                  <span>{currentUser?.name}</span>
-                </div>
+                <h1 className="text-2xl font-bold">Касса</h1>
+                <p className="text-sm text-muted-foreground">Смена: {sessionDuration}</p>
               </div>
             </div>
             
             <div className="flex items-center gap-2">
+              <Badge variant="secondary" className="text-sm px-3 py-1">
+                {currentUser?.name} ({currentUser?.role === 'admin' ? 'Администратор' : 'Кассир'})
+              </Badge>
+              
               {currentUser?.role === 'admin' && (
                 <>
-                  <Button variant="ghost" size="sm" onClick={() => setTelegramSettingsDialog(true)}>
-                    <Icon name="MessageSquare" size={16} className="mr-1" />
+                  <Button variant="outline" size="sm" onClick={() => setTelegramSettingsDialog(true)}>
+                    <Icon name="MessageSquare" size={16} className="mr-2" />
                     Telegram
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setManageCashiersDialog(true)}>
-                    <Icon name="Users" size={16} className="mr-1" />
+                  <Button variant="outline" size="sm" onClick={() => setManageCashiersDialog(true)}>
+                    <Icon name="Users" size={16} className="mr-2" />
                     Кассиры
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setAddCategoryDialog(true)}>
-                    <Icon name="FolderPlus" size={16} className="mr-1" />
+                  <Button variant="outline" size="sm" onClick={() => setAddCategoryDialog(true)}>
+                    <Icon name="FolderPlus" size={16} className="mr-2" />
                     Категория
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setAddProductDialog(true)}>
-                    <Icon name="Plus" size={16} className="mr-1" />
+                  <Button variant="outline" size="sm" onClick={() => setAddProductDialog(true)}>
+                    <Icon name="Plus" size={16} className="mr-2" />
                     Товар
                   </Button>
                 </>
               )}
               
-              <Button variant="ghost" size="sm" onClick={() => setChangePasswordDialog(true)}>
-                <Icon name="Key" size={16} className="mr-1" />
+              <Button variant="outline" size="sm" onClick={() => setChangePasswordDialog(true)}>
+                <Icon name="Key" size={16} className="mr-2" />
                 Пароль
               </Button>
               
-              <Button variant="ghost" size="sm" onClick={handleLogout} className="text-red-600 hover:text-red-700 hover:bg-red-50">
-                <Icon name="LogOut" size={16} className="mr-1" />
+              <Button variant="destructive" size="sm" onClick={handleLogout}>
+                <Icon name="LogOut" size={16} className="mr-2" />
                 Выйти
               </Button>
             </div>
@@ -601,44 +583,15 @@ const Index = () => {
         </div>
       </header>
 
-      <div className="container mx-auto px-4 py-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Выручка за смену</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{todayRevenue.toFixed(2)} ₽</div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Продано товаров</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{todayItemsCount} шт</div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium text-muted-foreground">Количество продаж</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{todaySales.length}</div>
-            </CardContent>
-          </Card>
-        </div>
-
+      <div className="container mx-auto px-4 py-6 relative z-10">
         <div className="grid lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-4">
+          <div className="lg:col-span-2 space-y-6">
             {showCategoryHome ? (
               <div className="space-y-4">
-                <h2 className="text-2xl font-bold">Категории</h2>
+                <h2 className="text-2xl font-bold">Выберите категорию</h2>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   <Card
-                    className="cursor-pointer hover:shadow-md transition-all hover:scale-[1.02]"
+                    className="cursor-pointer hover:bg-accent/50 transition-all hover:scale-105"
                     onClick={() => {
                       setSelectedCategory('all');
                       setShowCategoryHome(false);
@@ -650,15 +603,10 @@ const Index = () => {
                     </CardContent>
                   </Card>
                   
-                  {categories.map((category, index) => (
+                  {categories.map(category => (
                     <Card
                       key={category.id}
-                      draggable={currentUser?.role === 'admin'}
-                      onDragStart={() => handleDragStart(index)}
-                      onDragEnter={() => handleDragEnter(index)}
-                      onDragEnd={handleDragEnd}
-                      onDragOver={(e) => e.preventDefault()}
-                      className={`cursor-pointer hover:shadow-md transition-all hover:scale-[1.02] relative group ${currentUser?.role === 'admin' ? 'cursor-move' : ''}`}
+                      className="cursor-pointer hover:bg-accent/50 transition-all hover:scale-105 relative group"
                       onClick={() => {
                         setSelectedCategory(category.id);
                         setShowCategoryHome(false);
@@ -670,19 +618,17 @@ const Index = () => {
                       </CardContent>
                       
                       {currentUser?.role === 'admin' && (
-                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-7 w-7 p-0 bg-white/90 hover:bg-red-50"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deleteCategory(category.id);
-                            }}
-                          >
-                            <Icon name="Trash2" size={14} className="text-red-600" />
-                          </Button>
-                        </div>
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteCategory(category.id);
+                          }}
+                        >
+                          <Icon name="Trash2" size={14} />
+                        </Button>
                       )}
                     </Card>
                   ))}
@@ -692,12 +638,12 @@ const Index = () => {
               <div className="space-y-4">
                 <Button variant="outline" onClick={() => setShowCategoryHome(true)}>
                   <Icon name="ArrowLeft" size={16} className="mr-2" />
-                  Назад
+                  Назад к категориям
                 </Button>
                 
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   {filteredProducts.map(product => (
-                    <Card key={product.id} className="relative group hover:shadow-md transition-all">
+                    <Card key={product.id} className="relative group hover:shadow-lg transition-all">
                       <CardContent className="p-4">
                         <div className="text-center mb-3">
                           {product.customImage ? (
@@ -706,9 +652,9 @@ const Index = () => {
                             <div className="text-6xl">{product.image}</div>
                           )}
                         </div>
-                        <h3 className="font-medium text-sm mb-2 line-clamp-2 min-h-[40px]">{product.name}</h3>
+                        <h3 className="font-medium text-sm mb-2 line-clamp-2">{product.name}</h3>
                         <div className="flex items-center justify-between mb-3">
-                          <span className="text-lg font-bold">{product.price} ₽</span>
+                          <span className="text-lg font-bold text-primary">{product.price} ₽</span>
                           {product.salesCount > 0 && (
                             <Badge variant="secondary" className="text-xs">
                               {product.salesCount} шт
@@ -723,9 +669,8 @@ const Index = () => {
                         {currentUser?.role === 'admin' && (
                           <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
                             <Button
-                              variant="ghost"
+                              variant="secondary"
                               size="sm"
-                              className="h-7 w-7 p-0 bg-white/90"
                               onClick={() => {
                                 setEditingProduct(product);
                                 setEditProductDialog(true);
@@ -734,12 +679,11 @@ const Index = () => {
                               <Icon name="Pencil" size={14} />
                             </Button>
                             <Button
-                              variant="ghost"
+                              variant="destructive"
                               size="sm"
-                              className="h-7 w-7 p-0 bg-white/90 hover:bg-red-50"
                               onClick={() => deleteProduct(product.id)}
                             >
-                              <Icon name="Trash2" size={14} className="text-red-600" />
+                              <Icon name="Trash2" size={14} />
                             </Button>
                           </div>
                         )}
@@ -763,7 +707,7 @@ const Index = () => {
                     onClick={() => setActiveCartId(cart.id)}
                   >
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-sm">{cart.name}</span>
+                      <span className="font-medium">{cart.name}</span>
                       {cart.items.length > 0 && (
                         <Badge variant="secondary" className="text-xs">
                           {cart.items.reduce((sum, item) => sum + item.quantity, 0)}
@@ -772,7 +716,7 @@ const Index = () => {
                     </div>
                     {carts.length > 1 && (
                       <button
-                        className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs hover:bg-red-600"
+                        className="absolute -top-2 -right-2 bg-destructive text-destructive-foreground rounded-full w-5 h-5 flex items-center justify-center text-xs"
                         onClick={(e) => {
                           e.stopPropagation();
                           deleteCart(cart.id);
@@ -789,18 +733,17 @@ const Index = () => {
               </div>
 
               <Card className="sticky top-24" ref={cartRef}>
-                <CardHeader>
+                <CardContent className="p-6 space-y-4">
                   <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg">{activeCart.name}</CardTitle>
+                    <h2 className="text-xl font-bold">{activeCart.name}</h2>
                     {activeCart.items.length > 0 && cartTimers[activeCart.id] && (
-                      <Badge variant="outline">⏱️ {cartTimers[activeCart.id]}</Badge>
+                      <Badge variant="secondary">⏱️ {cartTimers[activeCart.id]}</Badge>
                     )}
                   </div>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="space-y-2 max-h-[400px] overflow-y-auto">
+
+                  <div className="space-y-3 max-h-[400px] overflow-y-auto">
                     {activeCart.items.length === 0 ? (
-                      <p className="text-center text-muted-foreground py-8 text-sm">Корзина пуста</p>
+                      <p className="text-center text-muted-foreground py-8">Корзина пуста</p>
                     ) : (
                       activeCart.items.map(item => {
                         const basePrice = item.coffeeSize && item.category === 'coffee'
@@ -809,101 +752,133 @@ const Index = () => {
                         const finalPrice = item.customPrice || basePrice;
 
                         return (
-                          <div key={item.id} className="border rounded-lg p-3 space-y-2">
-                            <div className="flex gap-2">
-                              <div className="text-2xl flex-shrink-0">
-                                {item.customImage ? (
-                                  <img src={item.customImage} alt={item.name} className="w-10 h-10 object-cover rounded" />
-                                ) : (
-                                  item.image
-                                )}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <h4 className="font-medium text-sm line-clamp-2">{item.name}</h4>
-                                
-                                {item.category === 'coffee' && (
-                                  <Select
-                                    value={item.coffeeSize || 'small'}
-                                    onValueChange={(value) => setCoffeeSize(item.id, value as any)}
-                                  >
-                                    <SelectTrigger className="w-full h-7 text-xs mt-1">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {Object.entries(COFFEE_SIZES).map(([key, { label }]) => (
-                                        <SelectItem key={key} value={key}>{label}</SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                )}
+                          <Card key={item.id}>
+                            <CardContent className="p-3">
+                              <div className="flex gap-3">
+                                <div className="text-3xl flex-shrink-0">
+                                  {item.customImage ? (
+                                    <img src={item.customImage} alt={item.name} className="w-12 h-12 object-cover rounded" />
+                                  ) : (
+                                    item.image
+                                  )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <h4 className="font-medium text-sm line-clamp-2">{item.name}</h4>
+                                  
+                                  {item.category === 'coffee' && (
+                                    <Select
+                                      value={item.coffeeSize || 'small'}
+                                      onValueChange={(value) => setCoffeeSize(item.id, value as any)}
+                                    >
+                                      <SelectTrigger className="w-full h-8 text-xs mt-1">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {Object.entries(COFFEE_SIZES).map(([key, { label }]) => (
+                                          <SelectItem key={key} value={key}>{label}</SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  )}
 
-                                <div className="flex items-center justify-between mt-2">
-                                  <div className="flex items-center gap-1">
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-6 w-6 p-0"
-                                      onClick={() => removeFromCart(item.id)}
-                                    >
-                                      <Icon name="Minus" size={12} />
-                                    </Button>
-                                    <span className="font-medium text-sm w-6 text-center">{item.quantity}</span>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-6 w-6 p-0"
-                                      onClick={(e) => addToCart(item, e as any)}
-                                    >
-                                      <Icon name="Plus" size={12} />
-                                    </Button>
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <span className="font-bold text-sm">{(finalPrice * item.quantity).toFixed(2)} ₽</span>
-                                    {currentUser?.role === 'admin' && (
+                                  <div className="flex items-center justify-between mt-2">
+                                    <div className="flex items-center gap-2">
                                       <Button
-                                        variant="ghost"
+                                        variant="outline"
                                         size="sm"
-                                        className="h-6 w-6 p-0"
+                                        className="h-7 w-7 p-0"
+                                        onClick={() => removeFromCart(item.id)}
+                                      >
+                                        <Icon name="Minus" size={12} />
+                                      </Button>
+                                      <span className="font-medium">{item.quantity}</span>
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-7 w-7 p-0"
                                         onClick={() => {
-                                          setSelectedItemForCustomPrice(item.id);
-                                          setCustomPriceDialog(true);
+                                          setCarts(carts.map(cart => {
+                                            if (cart.id === activeCartId) {
+                                              return {
+                                                ...cart,
+                                                items: cart.items.map(i =>
+                                                  i.id === item.id ? { ...i, quantity: i.quantity + 1 } : i
+                                                )
+                                              };
+                                            }
+                                            return cart;
+                                          }));
                                         }}
                                       >
-                                        <Icon name="Pencil" size={12} />
+                                        <Icon name="Plus" size={12} />
                                       </Button>
-                                    )}
+                                    </div>
+                                    
+                                    <div className="text-right">
+                                      <p className="text-sm font-bold">{(finalPrice * item.quantity).toFixed(0)} ₽</p>
+                                      {currentUser?.role === 'admin' && (
+                                        <Button
+                                          variant="ghost"
+                                          size="sm"
+                                          className="h-6 text-xs"
+                                          onClick={() => {
+                                            setSelectedItemForCustomPrice(item.id);
+                                            setCustomPrice(finalPrice.toString());
+                                            setCustomPriceDialog(true);
+                                          }}
+                                        >
+                                          <Icon name="Pencil" size={10} className="mr-1" />
+                                          Цена
+                                        </Button>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
                               </div>
-                            </div>
-                          </div>
+                            </CardContent>
+                          </Card>
                         );
                       })
                     )}
                   </div>
 
-                  {activeCart.items.length > 0 && (
-                    <>
-                      <div className="border-t pt-3">
-                        <div className="flex justify-between items-center mb-3">
-                          <span className="text-lg font-bold">Итого:</span>
-                          <span className="text-2xl font-bold">
-                            {activeCart.items.reduce((sum, item) => {
-                              const basePrice = item.coffeeSize && item.category === 'coffee'
-                                ? item.price * COFFEE_SIZES[item.coffeeSize].multiplier
-                                : item.price;
-                              const finalPrice = item.customPrice || basePrice;
-                              return sum + (finalPrice * item.quantity);
-                            }, 0).toFixed(2)} ₽
-                          </span>
-                        </div>
-                        <Button className="w-full" size="lg" onClick={completeSale}>
-                          <Icon name="CreditCard" size={20} className="mr-2" />
-                          Завершить продажу
-                        </Button>
-                      </div>
-                    </>
-                  )}
+                  <div className="pt-4 border-t space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-lg font-medium">Итого:</span>
+                      <span className="text-3xl font-bold text-primary">
+                        {activeCart.items.reduce((sum, item) => {
+                          const basePrice = item.coffeeSize && item.category === 'coffee'
+                            ? item.price * COFFEE_SIZES[item.coffeeSize].multiplier
+                            : item.price;
+                          return sum + (item.customPrice || basePrice) * item.quantity;
+                        }, 0).toFixed(0)} ₽
+                      </span>
+                    </div>
+
+                    <Button
+                      className="w-full"
+                      size="lg"
+                      onClick={completeSale}
+                      disabled={activeCart.items.length === 0}
+                    >
+                      <Icon name="CheckCircle" size={20} className="mr-2" />
+                      Завершить продажу
+                    </Button>
+
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => {
+                        setCarts(carts.map(cart =>
+                          cart.id === activeCartId ? { ...cart, items: [], createdAt: Date.now() } : cart
+                        ));
+                      }}
+                      disabled={activeCart.items.length === 0}
+                    >
+                      <Icon name="Trash2" size={16} className="mr-2" />
+                      Очистить корзину
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
             </div>
@@ -911,32 +886,113 @@ const Index = () => {
         </div>
       </div>
 
-      <Dialog open={customPriceDialog} onOpenChange={setCustomPriceDialog}>
+      <Dialog open={addCategoryDialog} onOpenChange={setAddCategoryDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Изменить цену</DialogTitle>
+            <DialogTitle>Добавить категорию</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label>Новая цена (₽)</Label>
+              <Label htmlFor="category-id">ID категории</Label>
               <Input
-                type="number"
-                value={customPrice}
-                onChange={(e) => setCustomPrice(e.target.value)}
-                placeholder="Введите цену"
+                id="category-id"
+                value={newCategory.id}
+                onChange={(e) => setNewCategory({ ...newCategory, id: e.target.value })}
+                placeholder="drinks"
+              />
+            </div>
+            <div>
+              <Label htmlFor="category-label">Название</Label>
+              <Input
+                id="category-label"
+                value={newCategory.label}
+                onChange={(e) => setNewCategory({ ...newCategory, label: e.target.value })}
+                placeholder="🥤 Напитки"
+              />
+            </div>
+            <div>
+              <Label htmlFor="category-emoji">Эмодзи</Label>
+              <Input
+                id="category-emoji"
+                value={newCategory.emoji}
+                onChange={(e) => setNewCategory({ ...newCategory, emoji: e.target.value })}
+                placeholder="🥤"
+                maxLength={2}
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => {
-              setCustomPriceDialog(false);
-              setCustomPrice('');
-            }}>
+            <Button variant="outline" onClick={() => setAddCategoryDialog(false)}>
               Отмена
             </Button>
-            <Button onClick={() => selectedItemForCustomPrice && setItemCustomPrice(selectedItemForCustomPrice)}>
-              Применить
+            <Button onClick={addNewCategory}>Добавить</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={addProductDialog} onOpenChange={setAddProductDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Добавить товар</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="product-name">Название</Label>
+              <Input
+                id="product-name"
+                value={newProduct.name}
+                onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="product-category">Категория</Label>
+              <Select
+                value={newProduct.category}
+                onValueChange={(value) => setNewProduct({ ...newProduct, category: value })}
+              >
+                <SelectTrigger id="product-category">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map(cat => (
+                    <SelectItem key={cat.id} value={cat.id}>{cat.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="product-price">Цена</Label>
+              <Input
+                id="product-price"
+                type="number"
+                value={newProduct.price}
+                onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="product-emoji">Эмодзи</Label>
+              <Input
+                id="product-emoji"
+                value={newProduct.image}
+                onChange={(e) => setNewProduct({ ...newProduct, image: e.target.value })}
+                maxLength={2}
+              />
+            </div>
+            <div>
+              <Label htmlFor="product-image">Изображение (опционально)</Label>
+              <Input
+                id="product-image"
+                type="file"
+                accept="image/*"
+                onChange={(e) => handleImageUpload(e, false)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddProductDialog(false)}>
+              Отмена
             </Button>
+            <Button onClick={addNewProduct}>Добавить</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -956,23 +1012,7 @@ const Index = () => {
                 />
               </div>
               <div>
-                <Label>Категория</Label>
-                <Select
-                  value={editingProduct.category}
-                  onValueChange={(value) => setEditingProduct({ ...editingProduct, category: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {categories.map(cat => (
-                      <SelectItem key={cat.id} value={cat.id}>{cat.label}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label>Цена (₽)</Label>
+                <Label>Цена</Label>
                 <Input
                   type="number"
                   value={editingProduct.price}
@@ -984,6 +1024,7 @@ const Index = () => {
                 <Input
                   value={editingProduct.image}
                   onChange={(e) => setEditingProduct({ ...editingProduct, image: e.target.value })}
+                  maxLength={2}
                 />
               </div>
               <div>
@@ -997,104 +1038,36 @@ const Index = () => {
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditProductDialog(false)}>Отмена</Button>
-            <Button onClick={saveProduct}>Сохранить</Button>
+            <Button variant="outline" onClick={() => setEditProductDialog(false)}>
+              Отмена
+            </Button>
+            <Button onClick={updateProduct}>Сохранить</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
-      <Dialog open={addProductDialog} onOpenChange={setAddProductDialog}>
+      <Dialog open={customPriceDialog} onOpenChange={setCustomPriceDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Добавить товар</DialogTitle>
+            <DialogTitle>Изменить цену</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label>Название</Label>
-              <Input
-                value={newProduct.name}
-                onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label>Категория</Label>
-              <Select
-                value={newProduct.category}
-                onValueChange={(value) => setNewProduct({ ...newProduct, category: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map(cat => (
-                    <SelectItem key={cat.id} value={cat.id}>{cat.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label>Цена (₽)</Label>
-              <Input
-                type="number"
-                value={newProduct.price}
-                onChange={(e) => setNewProduct({ ...newProduct, price: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label>Эмодзи</Label>
-              <Input
-                value={newProduct.image}
-                onChange={(e) => setNewProduct({ ...newProduct, image: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label>Изображение (опционально)</Label>
-              <Input
-                type="file"
-                accept="image/*"
-                onChange={(e) => handleImageUpload(e, false)}
-              />
-            </div>
+          <div>
+            <Label htmlFor="custom-price">Новая цена</Label>
+            <Input
+              id="custom-price"
+              type="number"
+              value={customPrice}
+              onChange={(e) => setCustomPrice(e.target.value)}
+              placeholder="Введите цену"
+            />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAddProductDialog(false)}>Отмена</Button>
-            <Button onClick={addProduct}>Добавить</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={addCategoryDialog} onOpenChange={setAddCategoryDialog}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Добавить категорию</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div>
-              <Label>ID категории</Label>
-              <Input
-                value={newCategory.id}
-                onChange={(e) => setNewCategory({ ...newCategory, id: e.target.value })}
-                placeholder="например: desserts"
-              />
-            </div>
-            <div>
-              <Label>Название</Label>
-              <Input
-                value={newCategory.label}
-                onChange={(e) => setNewCategory({ ...newCategory, label: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label>Эмодзи</Label>
-              <Input
-                value={newCategory.emoji}
-                onChange={(e) => setNewCategory({ ...newCategory, emoji: e.target.value })}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAddCategoryDialog(false)}>Отмена</Button>
-            <Button onClick={addCategory}>Добавить</Button>
+            <Button variant="outline" onClick={() => setCustomPriceDialog(false)}>
+              Отмена
+            </Button>
+            <Button onClick={() => selectedItemForCustomPrice && setItemCustomPrice(selectedItemForCustomPrice)}>
+              Применить
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1104,42 +1077,38 @@ const Index = () => {
           <ChangePasswordDialog
             open={changePasswordDialog}
             onOpenChange={setChangePasswordDialog}
-            currentUser={currentUser}
+            username={currentUser.username}
           />
-          
-          {currentUser.role === 'admin' && (
-            <>
-              <ManageCashiersDialog
-                open={manageCashiersDialog}
-                onOpenChange={setManageCashiersDialog}
-              />
-              
-              <TelegramSettingsDialog
-                open={telegramSettingsDialog}
-                onOpenChange={setTelegramSettingsDialog}
-              />
-            </>
-          )}
-          
+          <ManageCashiersDialog
+            open={manageCashiersDialog}
+            onOpenChange={setManageCashiersDialog}
+          />
+          <TelegramSettingsDialog
+            open={telegramSettingsDialog}
+            onOpenChange={setTelegramSettingsDialog}
+            onSave={(token, chatId) => {
+              setTelegramBotToken(token);
+              setTelegramChatId(chatId);
+            }}
+          />
           <PaymentMethodDialog
             open={paymentMethodDialog}
             onOpenChange={setPaymentMethodDialog}
             onSelect={finalizeSale}
-            total={activeCart?.items.reduce((sum, item) => {
+            total={activeCart.items.reduce((sum, item) => {
               const basePrice = item.coffeeSize && item.category === 'coffee'
                 ? item.price * COFFEE_SIZES[item.coffeeSize].multiplier
                 : item.price;
-              const finalPrice = item.customPrice || basePrice;
-              return sum + (finalPrice * item.quantity);
-            }, 0) || 0}
+              return sum + (item.customPrice || basePrice) * item.quantity;
+            }, 0)}
           />
-          
           <EndShiftDialog
             open={endShiftDialog}
             onOpenChange={setEndShiftDialog}
-            onConfirmLogout={confirmLogout}
-            currentUser={currentUser}
-            sessionStartTime={sessionStartTime}
+            report={getCurrentShiftReport(currentUser.name, sessionStartTime || Date.now())}
+            telegramBotToken={telegramBotToken}
+            telegramChatId={telegramChatId}
+            onConfirm={confirmLogout}
           />
         </>
       )}

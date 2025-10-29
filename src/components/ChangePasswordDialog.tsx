@@ -9,10 +9,10 @@ import { useToast } from '@/hooks/use-toast';
 interface ChangePasswordDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  currentUser: { username: string; name: string };
+  username: string;
 }
 
-export const ChangePasswordDialog = ({ open, onOpenChange, currentUser }: ChangePasswordDialogProps) => {
+export const ChangePasswordDialog = ({ open, onOpenChange, username }: ChangePasswordDialogProps) => {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -34,7 +34,7 @@ export const ChangePasswordDialog = ({ open, onOpenChange, currentUser }: Change
       return;
     }
 
-    if (updateUserPassword(currentUser.username, newPassword)) {
+    if (updateUserPassword(username, newPassword)) {
       toast({ title: '✅ Пароль успешно изменён' });
       setCurrentPassword('');
       setNewPassword('');
