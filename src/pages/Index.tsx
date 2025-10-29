@@ -56,6 +56,8 @@ interface Sale {
   cashier: string;
   paymentMethod: 'cash' | 'card';
   returned?: boolean;
+  returnTimestamp?: number;
+  returnReason?: string;
 }
 
 interface WriteOff {
@@ -167,6 +169,9 @@ const Index = () => {
   const [writeOffProduct, setWriteOffProduct] = useState<Product | null>(null);
   const [writeOffQuantity, setWriteOffQuantity] = useState('1');
   const [writeOffReason, setWriteOffReason] = useState('');
+  const [returningSale, setReturningSale] = useState<Sale | null>(null);
+  const [returnReason, setReturnReason] = useState('');
+  const [confirmReturnDialog, setConfirmReturnDialog] = useState(false);
   
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [newProduct, setNewProduct] = useState({ name: '', category: 'pies', price: '', image: '🍞' });
@@ -346,12 +351,24 @@ const Index = () => {
           `${i + 1}. ${p.name} - ${p.salesCount} шт`
         ).join('\n');
       
+      if (returnedSales.length > 0) {
+        reportText += `\n\n━━━━━━━━━━━━━━━━━━━━\n\n` +
+          `🔙 ВОЗВРАТЫ (${returnedSales.length}):\n` +
+          returnedSales.map((s) => {
+            const returnTime = s.returnTimestamp 
+              ? new Date(s.returnTimestamp).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
+              : '—';
+            return `${returnTime} • ${s.total} ₽ (${s.paymentMethod === 'cash' ? 'наличные' : 'карта'})\n   Причина: ${s.returnReason || 'не указана'}`;
+          }).join('\n');
+      }
+
       if (sessionWriteOffs.length > 0) {
         reportText += `\n\n━━━━━━━━━━━━━━━━━━━━\n\n` +
           `📋 СПИСАНИЯ (${sessionWriteOffs.length}):\n` +
-          sessionWriteOffs.map((w) => 
-            `${w.productName} - ${w.quantity} шт (${w.totalAmount} ₽)\n   Причина: ${w.reason}`
-          ).join('\n');
+          sessionWriteOffs.map((w) => {
+            const writeOffTime = new Date(w.timestamp).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+            return `${writeOffTime} • ${w.productName} - ${w.quantity} шт (${w.totalAmount} ₽)\n   Причина: ${w.reason}`;
+          }).join('\n');
       }
 
       const response = await fetch('https://functions.poehali.dev/c8e9896a-524b-4164-912d-ec49d9af0f35', {
@@ -564,19 +581,35 @@ const Index = () => {
     toast({ title: `Продажа завершена! Сумма: ${total} ₽`, description: `Способ оплаты: ${paymentMethod === 'cash' ? 'Наличные' : 'Карта'}` });
   };
 
-  const returnSale = (saleId: string) => {
-    const sale = sales.find(s => s.id === saleId);
-    if (!sale || sale.returned) return;
+  const openReturnDialog = (sale: Sale) => {
+    setReturningSale(sale);
+    setReturnReason('');
+    setConfirmReturnDialog(true);
+  };
 
-    sale.items.forEach(item => {
+  const confirmReturn = () => {
+    if (!returningSale || !returnReason.trim()) {
+      toast({ title: 'Укажите причину возврата', variant: 'destructive' });
+      return;
+    }
+
+    returningSale.items.forEach(item => {
       setProducts(products.map(p =>
         p.id === item.id ? { ...p, salesCount: Math.max(0, (p.salesCount || 0) - item.quantity) } : p
       ));
     });
 
-    setSales(sales.map(s => s.id === saleId ? { ...s, returned: true } : s));
-    toast({ title: 'Возврат выполнен', description: `Возвращено ${sale.total} ₽` });
+    setSales(sales.map(s => 
+      s.id === returningSale.id 
+        ? { ...s, returned: true, returnTimestamp: Date.now(), returnReason: returnReason } 
+        : s
+    ));
+    
+    toast({ title: 'Возврат выполнен', description: `Возвращено ${returningSale.total} ₽` });
+    setConfirmReturnDialog(false);
     setReturnSaleDialog(false);
+    setReturningSale(null);
+    setReturnReason('');
   };
 
   const openWriteOffDialog = (product: Product) => {
@@ -1355,7 +1388,7 @@ const Index = () => {
                       <Button 
                         variant="destructive" 
                         size="sm"
-                        onClick={() => returnSale(sale.id)}
+                        onClick={() => openReturnDialog(sale)}
                       >
                         <Icon name="Undo2" size={16} className="mr-1" />
                         Вернуть
@@ -1416,6 +1449,51 @@ const Index = () => {
               Отмена
             </Button>
             <Button onClick={performWriteOff}>Списать</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={confirmReturnDialog} onOpenChange={setConfirmReturnDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Подтверждение возврата</DialogTitle>
+          </DialogHeader>
+          {returningSale && (
+            <div className="space-y-4">
+              <div className="p-4 bg-gray-50 rounded-lg space-y-2">
+                <p className="font-semibold text-lg">{returningSale.total} ₽</p>
+                <p className="text-sm text-muted-foreground">
+                  {returningSale.paymentMethod === 'cash' ? 'Наличные' : 'Карта'} • 
+                  {new Date(returningSale.timestamp).toLocaleString('ru-RU')}
+                </p>
+                <div className="pt-2 border-t space-y-1">
+                  {returningSale.items.map((item, idx) => (
+                    <div key={idx} className="flex items-center gap-2 text-sm">
+                      <span>{item.image}</span>
+                      <span className="flex-1">{item.name}</span>
+                      <span className="text-muted-foreground">{item.quantity} шт</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <Label>Причина возврата</Label>
+                <Input 
+                  placeholder="Например: брак товара, не понравилось"
+                  value={returnReason}
+                  onChange={(e) => setReturnReason(e.target.value)}
+                  autoFocus
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmReturnDialog(false)}>
+              Отмена
+            </Button>
+            <Button variant="destructive" onClick={confirmReturn}>
+              Вернуть деньги
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
