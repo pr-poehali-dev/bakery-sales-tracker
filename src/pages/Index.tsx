@@ -55,6 +55,17 @@ interface Sale {
   timestamp: number;
   cashier: string;
   paymentMethod: 'cash' | 'card';
+  returned?: boolean;
+}
+
+interface WriteOff {
+  id: string;
+  productId: string;
+  productName: string;
+  quantity: number;
+  reason: string;
+  timestamp: number;
+  cashier: string;
 }
 
 const COFFEE_SIZES = {
@@ -122,6 +133,10 @@ const Index = () => {
     const saved = localStorage.getItem('sales');
     return saved ? JSON.parse(saved) : [];
   });
+  const [writeOffs, setWriteOffs] = useState<WriteOff[]>(() => {
+    const saved = localStorage.getItem('writeOffs');
+    return saved ? JSON.parse(saved) : [];
+  });
   
   const [carts, setCarts] = useState<Cart[]>([{ id: '1', name: 'Корзина 1', items: [], createdAt: Date.now(), startTime: null }]);
   const [activeCartId, setActiveCartId] = useState('1');
@@ -145,6 +160,11 @@ const Index = () => {
   const [manageCashiersDialog, setManageCashiersDialog] = useState(false);
   const [telegramSettingsDialog, setTelegramSettingsDialog] = useState(false);
   const [sendingReport, setSendingReport] = useState(false);
+  const [returnSaleDialog, setReturnSaleDialog] = useState(false);
+  const [writeOffDialog, setWriteOffDialog] = useState(false);
+  const [writeOffProduct, setWriteOffProduct] = useState<Product | null>(null);
+  const [writeOffQuantity, setWriteOffQuantity] = useState('1');
+  const [writeOffReason, setWriteOffReason] = useState('');
   
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [newProduct, setNewProduct] = useState({ name: '', category: 'pies', price: '', image: '🍞' });
@@ -176,6 +196,10 @@ const Index = () => {
   useEffect(() => {
     localStorage.setItem('categories', JSON.stringify(categories));
   }, [categories]);
+
+  useEffect(() => {
+    localStorage.setItem('writeOffs', JSON.stringify(writeOffs));
+  }, [writeOffs]);
 
   useEffect(() => {
     localStorage.setItem('users', JSON.stringify(users));
@@ -464,7 +488,8 @@ const Index = () => {
       total,
       timestamp: Date.now(),
       cashier: currentUser?.name || 'Unknown',
-      paymentMethod
+      paymentMethod,
+      returned: false
     };
     
     setSales([...sales, sale]);
@@ -487,6 +512,55 @@ const Index = () => {
     
     setPaymentDialog(false);
     toast({ title: `Продажа завершена! Сумма: ${total} ₽`, description: `Способ оплаты: ${paymentMethod === 'cash' ? 'Наличные' : 'Карта'}` });
+  };
+
+  const returnSale = (saleId: string) => {
+    const sale = sales.find(s => s.id === saleId);
+    if (!sale || sale.returned) return;
+
+    sale.items.forEach(item => {
+      setProducts(products.map(p =>
+        p.id === item.id ? { ...p, salesCount: Math.max(0, (p.salesCount || 0) - item.quantity) } : p
+      ));
+    });
+
+    setSales(sales.map(s => s.id === saleId ? { ...s, returned: true } : s));
+    toast({ title: 'Возврат выполнен', description: `Возвращено ${sale.total} ₽` });
+    setReturnSaleDialog(false);
+  };
+
+  const openWriteOffDialog = (product: Product) => {
+    setWriteOffProduct(product);
+    setWriteOffQuantity('1');
+    setWriteOffReason('');
+    setWriteOffDialog(true);
+  };
+
+  const performWriteOff = () => {
+    if (!writeOffProduct || !writeOffReason.trim()) {
+      toast({ title: 'Укажите причину списания', variant: 'destructive' });
+      return;
+    }
+
+    const quantity = parseInt(writeOffQuantity);
+    if (isNaN(quantity) || quantity <= 0) {
+      toast({ title: 'Укажите корректное количество', variant: 'destructive' });
+      return;
+    }
+
+    const writeOff: WriteOff = {
+      id: Date.now().toString(),
+      productId: writeOffProduct.id,
+      productName: writeOffProduct.name,
+      quantity,
+      reason: writeOffReason,
+      timestamp: Date.now(),
+      cashier: currentUser?.name || 'Unknown'
+    };
+
+    setWriteOffs([...writeOffs, writeOff]);
+    toast({ title: 'Товар списан', description: `${writeOffProduct.name} — ${quantity} шт` });
+    setWriteOffDialog(false);
   };
 
   const addProduct = () => {
@@ -668,6 +742,10 @@ const Index = () => {
               >
                 <Icon name="Send" size={16} className="mr-1" />
                 {sendingReport ? 'Отправка...' : 'Отчёт в Telegram'}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setReturnSaleDialog(true)}>
+                <Icon name="Undo2" size={16} className="mr-1" />
+                Возврат
               </Button>
               <Button variant="ghost" size="sm" onClick={handleLogout}>
                 <Icon name="LogOut" size={16} className="mr-1" />
@@ -924,7 +1002,7 @@ const Index = () => {
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-lg font-bold text-primary">{product.price} ₽</span>
                   </div>
-                  <Button className="w-full" size="sm" onClick={(e) => {
+                  <Button className="w-full mb-2" size="sm" onClick={(e) => {
                     addToCart(product, e);
                     setCategoryDialog(false);
                   }}>
@@ -933,14 +1011,28 @@ const Index = () => {
                   </Button>
                   
                   {currentUser?.role === 'admin' && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="absolute top-2 right-2 h-7 w-7 p-0 opacity-0 group-hover:opacity-100 bg-white"
-                      onClick={() => deleteProduct(product.id)}
-                    >
-                      <Icon name="Trash2" size={14} className="text-red-600" />
-                    </Button>
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="w-full"
+                        onClick={() => {
+                          setCategoryDialog(false);
+                          openWriteOffDialog(product);
+                        }}
+                      >
+                        <Icon name="PackageMinus" size={14} className="mr-1" />
+                        Списать
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="absolute top-2 right-2 h-7 w-7 p-0 opacity-0 group-hover:opacity-100 bg-white"
+                        onClick={() => deleteProduct(product.id)}
+                      >
+                        <Icon name="Trash2" size={14} className="text-red-600" />
+                      </Button>
+                    </>
                   )}
                 </CardContent>
               </Card>
@@ -1151,6 +1243,101 @@ const Index = () => {
               Отмена
             </Button>
             <Button onClick={saveTelegramSettings}>Сохранить</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={returnSaleDialog} onOpenChange={setReturnSaleDialog}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Возврат товара</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            {sessionStartTime && sales.filter(s => s.timestamp >= sessionStartTime && !s.returned).length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Icon name="Package" size={48} className="mx-auto mb-2 opacity-20" />
+                <p>Нет продаж для возврата</p>
+              </div>
+            ) : (
+              sales
+                .filter(s => sessionStartTime && s.timestamp >= sessionStartTime && !s.returned)
+                .reverse()
+                .map(sale => (
+                  <Card key={sale.id} className="p-4">
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <p className="text-sm text-muted-foreground">
+                          {new Date(sale.timestamp).toLocaleTimeString('ru-RU')}
+                        </p>
+                        <p className="font-semibold text-lg">{sale.total} ₽</p>
+                        <p className="text-xs text-muted-foreground">
+                          {sale.paymentMethod === 'cash' ? 'Наличные' : 'Карта'} • {sale.cashier}
+                        </p>
+                      </div>
+                      <Button 
+                        variant="destructive" 
+                        size="sm"
+                        onClick={() => returnSale(sale.id)}
+                      >
+                        <Icon name="Undo2" size={16} className="mr-1" />
+                        Вернуть
+                      </Button>
+                    </div>
+                    <div className="space-y-2">
+                      {sale.items.map((item, idx) => (
+                        <div key={idx} className="flex items-center gap-2 text-sm">
+                          <span className="text-lg">{item.image}</span>
+                          <span className="flex-1">{item.name}</span>
+                          <span className="text-muted-foreground">{item.quantity} шт</span>
+                          <span className="font-medium">{item.price * item.quantity} ₽</span>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={writeOffDialog} onOpenChange={setWriteOffDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Списание товара</DialogTitle>
+          </DialogHeader>
+          {writeOffProduct && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
+                <span className="text-3xl">{writeOffProduct.image}</span>
+                <div>
+                  <p className="font-medium">{writeOffProduct.name}</p>
+                  <p className="text-sm text-muted-foreground">{writeOffProduct.price} ₽</p>
+                </div>
+              </div>
+              <div>
+                <Label>Количество</Label>
+                <Input 
+                  type="number" 
+                  min="1"
+                  value={writeOffQuantity}
+                  onChange={(e) => setWriteOffQuantity(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label>Причина списания</Label>
+                <Input 
+                  placeholder="Например: брак, истёк срок годности"
+                  value={writeOffReason}
+                  onChange={(e) => setWriteOffReason(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setWriteOffDialog(false)}>
+              Отмена
+            </Button>
+            <Button onClick={performWriteOff}>Списать</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
