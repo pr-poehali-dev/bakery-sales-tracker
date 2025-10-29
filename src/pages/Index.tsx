@@ -113,6 +113,10 @@ const Index = () => {
   const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [users, setUsers] = useState<User[]>(() => {
+    const saved = localStorage.getItem('users');
+    return saved ? JSON.parse(saved) : [ADMIN_USER];
+  });
   const [sales, setSales] = useState<Sale[]>(() => {
     const saved = localStorage.getItem('sales');
     return saved ? JSON.parse(saved) : [];
@@ -135,10 +139,13 @@ const Index = () => {
   const [addCategoryDialog, setAddCategoryDialog] = useState(false);
   const [editProductDialog, setEditProductDialog] = useState(false);
   const [paymentDialog, setPaymentDialog] = useState(false);
+  const [addCashierDialog, setAddCashierDialog] = useState(false);
+  const [manageCashiersDialog, setManageCashiersDialog] = useState(false);
   
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [newProduct, setNewProduct] = useState({ name: '', category: 'pies', price: '', image: '🍞' });
   const [newCategory, setNewCategory] = useState({ id: '', label: '', emoji: '📦' });
+  const [newCashier, setNewCashier] = useState({ username: '', password: '', name: '' });
   
   const { toast } = useToast();
   const activeCart = carts.find(c => c.id === activeCartId) || carts[0];
@@ -155,15 +162,49 @@ const Index = () => {
     localStorage.setItem('categories', JSON.stringify(categories));
   }, [categories]);
 
+  useEffect(() => {
+    localStorage.setItem('users', JSON.stringify(users));
+  }, [users]);
+
   const handleLogin = () => {
-    if (username === ADMIN_USER.username && password === ADMIN_USER.password) {
+    const user = users.find(u => u.username === username && u.password === password);
+    if (user) {
       setIsAuthenticated(true);
-      setCurrentUser(ADMIN_USER);
+      setCurrentUser(user);
       setSessionStartTime(Date.now());
-      toast({ title: `Добро пожаловать, ${ADMIN_USER.name}!` });
+      toast({ title: `Добро пожаловать, ${user.name}!` });
     } else {
       toast({ title: 'Неверный логин или пароль', variant: 'destructive' });
     }
+  };
+
+  const addCashier = () => {
+    if (!newCashier.username || !newCashier.password || !newCashier.name) {
+      toast({ title: 'Заполните все поля', variant: 'destructive' });
+      return;
+    }
+    
+    if (users.some(u => u.username === newCashier.username)) {
+      toast({ title: 'Пользователь с таким логином уже существует', variant: 'destructive' });
+      return;
+    }
+
+    const cashier: User = {
+      username: newCashier.username,
+      password: newCashier.password,
+      name: newCashier.name,
+      role: 'cashier'
+    };
+
+    setUsers([...users, cashier]);
+    setNewCashier({ username: '', password: '', name: '' });
+    setAddCashierDialog(false);
+    toast({ title: `Кассир ${cashier.name} добавлен` });
+  };
+
+  const deleteCashier = (username: string) => {
+    setUsers(users.filter(u => u.username !== username));
+    toast({ title: 'Кассир удалён' });
   };
 
   const handleLogout = () => {
@@ -415,6 +456,10 @@ const Index = () => {
                   <Button variant="ghost" size="sm" onClick={() => setAddProductDialog(true)}>
                     <Icon name="Plus" size={16} className="mr-1" />
                     Товар
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => setManageCashiersDialog(true)}>
+                    <Icon name="Users" size={16} className="mr-1" />
+                    Кассиры
                   </Button>
                 </>
               )}
@@ -691,6 +736,91 @@ const Index = () => {
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddCategoryDialog(false)}>Отмена</Button>
             <Button onClick={addCategory}>Добавить</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={manageCashiersDialog} onOpenChange={setManageCashiersDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Управление кассирами</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Button className="w-full" onClick={() => {
+              setManageCashiersDialog(false);
+              setAddCashierDialog(true);
+            }}>
+              <Icon name="UserPlus" size={16} className="mr-2" />
+              Добавить кассира
+            </Button>
+            
+            <div className="border rounded-lg divide-y">
+              {users.filter(u => u.role === 'cashier').map(cashier => (
+                <div key={cashier.username} className="p-4 flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">{cashier.name}</p>
+                    <p className="text-sm text-muted-foreground">Логин: {cashier.username}</p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => deleteCashier(cashier.username)}
+                  >
+                    <Icon name="Trash2" size={16} className="text-red-600" />
+                  </Button>
+                </div>
+              ))}
+              {users.filter(u => u.role === 'cashier').length === 0 && (
+                <div className="p-8 text-center text-muted-foreground">
+                  <Icon name="Users" size={48} className="mx-auto mb-2 opacity-20" />
+                  <p>Нет кассиров</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={addCashierDialog} onOpenChange={setAddCashierDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Добавить кассира</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Имя кассира</Label>
+              <Input 
+                placeholder="Например: Мария Иванова"
+                value={newCashier.name} 
+                onChange={(e) => setNewCashier({...newCashier, name: e.target.value})} 
+              />
+            </div>
+            <div>
+              <Label>Логин</Label>
+              <Input 
+                placeholder="Например: maria"
+                value={newCashier.username} 
+                onChange={(e) => setNewCashier({...newCashier, username: e.target.value})} 
+              />
+            </div>
+            <div>
+              <Label>Пароль</Label>
+              <Input 
+                type="password"
+                placeholder="Придумайте пароль"
+                value={newCashier.password} 
+                onChange={(e) => setNewCashier({...newCashier, password: e.target.value})} 
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => {
+              setAddCashierDialog(false);
+              setManageCashiersDialog(true);
+            }}>
+              Отмена
+            </Button>
+            <Button onClick={addCashier}>Добавить</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
