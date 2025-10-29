@@ -490,9 +490,6 @@ const Index = () => {
               <Button className="w-full" size="lg" onClick={handleLogin}>
                 Войти
               </Button>
-              <p className="text-xs text-center text-muted-foreground">
-                По умолчанию: admin / admin
-              </p>
             </div>
           </CardContent>
         </Card>
