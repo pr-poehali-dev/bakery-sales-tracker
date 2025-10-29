@@ -63,6 +63,8 @@ interface WriteOff {
   productId: string;
   productName: string;
   quantity: number;
+  price: number;
+  totalAmount: number;
   reason: string;
   timestamp: number;
   cashier: string;
@@ -548,18 +550,22 @@ const Index = () => {
       return;
     }
 
+    const totalAmount = writeOffProduct.price * quantity;
+
     const writeOff: WriteOff = {
       id: Date.now().toString(),
       productId: writeOffProduct.id,
       productName: writeOffProduct.name,
       quantity,
+      price: writeOffProduct.price,
+      totalAmount,
       reason: writeOffReason,
       timestamp: Date.now(),
       cashier: currentUser?.name || 'Unknown'
     };
 
     setWriteOffs([...writeOffs, writeOff]);
-    toast({ title: 'Товар списан', description: `${writeOffProduct.name} — ${quantity} шт` });
+    toast({ title: 'Товар списан', description: `${writeOffProduct.name} — ${quantity} шт (${totalAmount} ₽)` });
     setWriteOffDialog(false);
   };
 
@@ -759,7 +765,9 @@ const Index = () => {
       <div className="container mx-auto px-4 py-6">
         {sessionStartTime && (() => {
           const sessionSales = sales.filter(s => s.timestamp >= sessionStartTime);
-          const sessionRevenue = sessionSales.reduce((sum, s) => sum + s.total, 0);
+          const sessionWriteOffs = writeOffs.filter(w => w.timestamp >= sessionStartTime);
+          const writeOffsTotal = sessionWriteOffs.reduce((sum, w) => sum + w.totalAmount, 0);
+          const sessionRevenue = sessionSales.reduce((sum, s) => sum + s.total, 0) - writeOffsTotal;
           const sessionItemsCount = sessionSales.reduce((sum, s) => 
             sum + s.items.reduce((iSum, i) => iSum + i.quantity, 0), 0
           );
@@ -772,6 +780,9 @@ const Index = () => {
                     <div>
                       <p className="text-sm opacity-90 mb-1">Выручка за смену</p>
                       <p className="text-3xl font-bold">{sessionRevenue} ₽</p>
+                      {writeOffsTotal > 0 && (
+                        <p className="text-xs opacity-70 mt-1">Списания: -{writeOffsTotal} ₽</p>
+                      )}
                     </div>
                     <Icon name="TrendingUp" size={40} className="opacity-80" />
                   </div>
