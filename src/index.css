@@ -66,25 +66,3 @@
     font-family: "Cormorant", serif;
   }
 }
-
-@keyframes fly-to-cart {
-  0% {
-    transform: translate(0, 0) scale(1);
-    opacity: 1;
-  }
-  50% {
-    transform: translate(var(--x-mid), var(--y-mid)) scale(0.5);
-    opacity: 0.8;
-  }
-  100% {
-    transform: translate(var(--x-end), var(--y-end)) scale(0.1);
-    opacity: 0;
-  }
-}
-
-.fly-animation {
-  animation: fly-to-cart 0.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
-  pointer-events: none;
-  position: fixed;
-  z-index: 9999;
-}
