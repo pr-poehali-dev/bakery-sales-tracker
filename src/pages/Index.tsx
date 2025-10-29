@@ -128,7 +128,8 @@ const Index = () => {
     const saved = localStorage.getItem('categories');
     return saved ? JSON.parse(saved) : INITIAL_CATEGORIES;
   });
-  const [selectedCategory, setSelectedCategory] = useState<string>('all');
+  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
+  const [categoryDialog, setCategoryDialog] = useState(false);
   
   const [addProductDialog, setAddProductDialog] = useState(false);
   const [addCategoryDialog, setAddCategoryDialog] = useState(false);
@@ -336,9 +337,14 @@ const Index = () => {
     dragOverItem.current = null;
   };
 
-  const filteredProducts = selectedCategory === 'all'
-    ? products
-    : products.filter(p => p.category === selectedCategory);
+  const openCategoryDialog = (categoryId: string) => {
+    setSelectedCategoryId(categoryId);
+    setCategoryDialog(true);
+  };
+  
+  const filteredProducts = selectedCategoryId
+    ? products.filter(p => p.category === selectedCategoryId)
+    : [];
 
   if (!isAuthenticated) {
     return (
@@ -475,16 +481,6 @@ const Index = () => {
             <div>
               <h2 className="text-2xl font-bold mb-4">Категории</h2>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <Card
-                  className="category-card cursor-pointer hover:shadow-lg border-2 border-transparent hover:border-primary"
-                  onClick={() => setSelectedCategory('all')}
-                >
-                  <CardContent className="p-6 text-center">
-                    <div className="text-5xl mb-2">🛒</div>
-                    <p className="font-semibold">Все товары</p>
-                  </CardContent>
-                </Card>
-                
                 {categories.map((category, index) => (
                   <Card
                     key={category.id}
@@ -496,7 +492,7 @@ const Index = () => {
                     onDragEnter={() => handleDragEnter(index)}
                     onDragEnd={handleDragEnd}
                     onDragOver={(e) => e.preventDefault()}
-                    onClick={() => setSelectedCategory(category.id)}
+                    onClick={() => openCategoryDialog(category.id)}
                   >
                     <CardContent className="p-6 text-center relative">
                       <div className="text-5xl mb-2">{category.emoji}</div>
@@ -510,50 +506,6 @@ const Index = () => {
                             e.stopPropagation();
                             deleteCategory(category.id);
                           }}
-                        >
-                          <Icon name="Trash2" size={14} className="text-red-600" />
-                        </Button>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-2xl font-bold">
-                  {selectedCategory === 'all' ? 'Все товары' : categories.find(c => c.id === selectedCategory)?.label}
-                </h2>
-                {selectedCategory !== 'all' && (
-                  <Button variant="ghost" size="sm" onClick={() => setSelectedCategory('all')}>
-                    <Icon name="ArrowLeft" size={16} className="mr-1" />
-                    Назад
-                  </Button>
-                )}
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {filteredProducts.map(product => (
-                  <Card key={product.id} className="relative group hover:shadow-lg transition-all">
-                    <CardContent className="p-4">
-                      <div className="text-center mb-3">
-                        <div className="text-6xl">{product.image}</div>
-                      </div>
-                      <h3 className="font-medium text-sm mb-2 min-h-[40px] line-clamp-2">{product.name}</h3>
-                      <div className="flex items-center justify-between mb-3">
-                        <span className="text-lg font-bold text-primary">{product.price} ₽</span>
-                      </div>
-                      <Button className="w-full" size="sm" onClick={(e) => addToCart(product, e)}>
-                        <Icon name="ShoppingCart" size={14} className="mr-1" />
-                        В корзину
-                      </Button>
-                      
-                      {currentUser?.role === 'admin' && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="absolute top-2 right-2 h-7 w-7 p-0 opacity-0 group-hover:opacity-100 bg-white"
-                          onClick={() => deleteProduct(product.id)}
                         >
                           <Icon name="Trash2" size={14} className="text-red-600" />
                         </Button>
@@ -615,6 +567,50 @@ const Index = () => {
           </div>
         </div>
       </div>
+
+      <Dialog open={categoryDialog} onOpenChange={setCategoryDialog}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl">
+              {selectedCategoryId && categories.find(c => c.id === selectedCategoryId)?.emoji}{' '}
+              {selectedCategoryId && categories.find(c => c.id === selectedCategoryId)?.label}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mt-4">
+            {filteredProducts.map(product => (
+              <Card key={product.id} className="relative group hover:shadow-lg transition-all">
+                <CardContent className="p-4">
+                  <div className="text-center mb-3">
+                    <div className="text-5xl">{product.image}</div>
+                  </div>
+                  <h3 className="font-medium text-sm mb-2 min-h-[40px] line-clamp-2">{product.name}</h3>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-lg font-bold text-primary">{product.price} ₽</span>
+                  </div>
+                  <Button className="w-full" size="sm" onClick={(e) => {
+                    addToCart(product, e);
+                    setCategoryDialog(false);
+                  }}>
+                    <Icon name="ShoppingCart" size={14} className="mr-1" />
+                    В корзину
+                  </Button>
+                  
+                  {currentUser?.role === 'admin' && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="absolute top-2 right-2 h-7 w-7 p-0 opacity-0 group-hover:opacity-100 bg-white"
+                      onClick={() => deleteProduct(product.id)}
+                    >
+                      <Icon name="Trash2" size={14} className="text-red-600" />
+                    </Button>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={paymentDialog} onOpenChange={setPaymentDialog}>
         <DialogContent>
