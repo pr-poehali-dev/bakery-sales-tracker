@@ -277,19 +277,20 @@ const Index = () => {
           `${i + 1}\. ${p.name} \- ${p.salesCount} шт`
         ).join('\n');
 
-      const url = `https://api.telegram.org/bot${telegramSettings.botToken}/sendMessage`;
-      const response = await fetch(url, {
+      const response = await fetch('https://functions.poehali.dev/c8e9896a-524b-4164-912d-ec49d9af0f35', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          chat_id: telegramSettings.chatId,
-          text: reportText,
-          parse_mode: 'MarkdownV2'
+          botToken: telegramSettings.botToken,
+          chatId: telegramSettings.chatId,
+          reportText: reportText
         })
       });
 
+      const result = await response.json();
+
       if (!response.ok) {
-        throw new Error('Ошибка отправки');
+        throw new Error(result.error || 'Ошибка отправки');
       }
 
       toast({ title: 'Отчёт отправлен в Telegram!' });
