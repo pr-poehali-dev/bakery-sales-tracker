@@ -678,24 +678,12 @@ const Index = () => {
               <CardContent className="p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-xl font-bold">{activeCart.name}</h3>
-                  <div className="flex items-center gap-3">
-                    {activeCart.startTime && (
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Icon name="Timer" size={16} />
-                        <span className="font-mono">{formatTime(activeCart.startTime)}</span>
-                      </div>
-                    )}
-                    {carts.length > 1 && activeCart.items.length === 0 && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0 hover:bg-red-100 hover:text-red-600"
-                        onClick={() => closeCart(activeCart.id)}
-                      >
-                        <Icon name="X" size={18} />
-                      </Button>
-                    )}
-                  </div>
+                  {activeCart.startTime && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Icon name="Timer" size={16} />
+                      <span className="font-mono">{formatTime(activeCart.startTime)}</span>
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-3 max-h-[400px] overflow-y-auto">
                   {activeCart.items.length === 0 ? (
