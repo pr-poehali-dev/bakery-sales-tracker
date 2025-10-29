@@ -152,7 +152,10 @@ const Index = () => {
   const [newCashier, setNewCashier] = useState({ username: '', password: '', name: '' });
   const [telegramSettings, setTelegramSettings] = useState(() => {
     const saved = localStorage.getItem('telegramSettings');
-    return saved ? JSON.parse(saved) : { botToken: '', chatId: '' };
+    return saved ? JSON.parse(saved) : { 
+      botToken: '7547851624:AAH9HuMNryr88aJ8oLIugazpULsEaNMGlPk', 
+      chatId: '444590628' 
+    };
   });
   const [holdingCartId, setHoldingCartId] = useState<string | null>(null);
   const [holdProgress, setHoldProgress] = useState(0);

@@ -1,0 +1,19 @@
+{
+  "tests": [
+    {
+      "name": "Send real test report to Telegram",
+      "method": "POST",
+      "path": "/",
+      "body": {
+        "botToken": "7547851624:AAH9HuMNryr88aJ8oLIugazpULsEaNMGlPk",
+        "chatId": "444590628",
+        "reportText": "📊 *Тестовый отчёт*\n\n💼 *Хлеб Бабушкин*\n👤 Кассир: Тест\n📅 Дата: 29.10.2025\n\n💰 Выручка: 1000 ₽\n📦 Товаров: 10 шт\n🛋️ Продаж: 5"
+      },
+      "expectedStatus": 200,
+      "expectedBody": {
+        "success": true
+      },
+      "bodyMatcher": "partial"
+    }
+  ]
+}
