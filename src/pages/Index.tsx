@@ -172,6 +172,7 @@ const Index = () => {
   const [returningSale, setReturningSale] = useState<Sale | null>(null);
   const [returnReason, setReturnReason] = useState('');
   const [confirmReturnDialog, setConfirmReturnDialog] = useState(false);
+  const [closeShiftDialog, setCloseShiftDialog] = useState(false);
   
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [newProduct, setNewProduct] = useState({ name: '', category: 'pies', price: '', image: '🍞' });
@@ -233,6 +234,16 @@ const Index = () => {
     } else {
       toast({ title: 'Неверный логин или пароль', variant: 'destructive' });
     }
+  };
+
+  const handleCloseShift = () => {
+    setCloseShiftDialog(true);
+  };
+
+  const confirmCloseShift = async () => {
+    await sendReportToTelegram();
+    setCloseShiftDialog(false);
+    handleLogout();
   };
 
   const addCashier = () => {
@@ -834,9 +845,9 @@ const Index = () => {
                 <Icon name="Undo2" size={16} className="mr-1" />
                 Возврат
               </Button>
-              <Button variant="ghost" size="sm" onClick={handleLogout}>
-                <Icon name="LogOut" size={16} className="mr-1" />
-                Выйти
+              <Button variant="ghost" size="sm" onClick={handleCloseShift}>
+                <Icon name="DoorOpen" size={16} className="mr-1" />
+                Закрыть смену
               </Button>
             </div>
           </div>
@@ -1493,6 +1504,63 @@ const Index = () => {
             </Button>
             <Button variant="destructive" onClick={confirmReturn}>
               Вернуть деньги
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={closeShiftDialog} onOpenChange={setCloseShiftDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Закрытие смены</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-muted-foreground">
+              При закрытии смены будет автоматически отправлен отчёт в Telegram, и вы выйдете из системы.
+            </p>
+            {sessionStartTime && (() => {
+              const sessionSales = sales.filter(s => s.timestamp >= sessionStartTime);
+              const sessionWriteOffs = writeOffs.filter(w => w.timestamp >= sessionStartTime);
+              
+              const notReturnedSales = sessionSales.filter(s => !s.returned);
+              const returnsTotal = sessionSales.filter(s => s.returned).reduce((sum, s) => sum + s.total, 0);
+              
+              const salesTotal = notReturnedSales.reduce((sum, s) => sum + s.total, 0);
+              const writeOffsTotal = sessionWriteOffs.reduce((sum, w) => sum + w.totalAmount, 0);
+              const sessionRevenue = salesTotal - writeOffsTotal;
+
+              return (
+                <div className="p-4 bg-gray-50 rounded-lg space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-sm">Выручка за смену:</span>
+                    <span className="font-semibold">{sessionRevenue} ₽</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-muted-foreground">
+                    <span>Продажи:</span>
+                    <span>{notReturnedSales.length}</span>
+                  </div>
+                  {returnsTotal > 0 && (
+                    <div className="flex justify-between text-sm text-muted-foreground">
+                      <span>Возвраты:</span>
+                      <span>-{returnsTotal} ₽</span>
+                    </div>
+                  )}
+                  {writeOffsTotal > 0 && (
+                    <div className="flex justify-between text-sm text-muted-foreground">
+                      <span>Списания:</span>
+                      <span>-{writeOffsTotal} ₽</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCloseShiftDialog(false)}>
+              Отмена
+            </Button>
+            <Button onClick={confirmCloseShift} disabled={sendingReport}>
+              {sendingReport ? 'Отправка отчёта...' : 'Закрыть смену'}
             </Button>
           </DialogFooter>
         </DialogContent>
