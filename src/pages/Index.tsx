@@ -143,11 +143,17 @@ const Index = () => {
   const [paymentDialog, setPaymentDialog] = useState(false);
   const [addCashierDialog, setAddCashierDialog] = useState(false);
   const [manageCashiersDialog, setManageCashiersDialog] = useState(false);
+  const [telegramSettingsDialog, setTelegramSettingsDialog] = useState(false);
+  const [sendingReport, setSendingReport] = useState(false);
   
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [newProduct, setNewProduct] = useState({ name: '', category: 'pies', price: '', image: '🍞' });
   const [newCategory, setNewCategory] = useState({ id: '', label: '', emoji: '📦' });
   const [newCashier, setNewCashier] = useState({ username: '', password: '', name: '' });
+  const [telegramSettings, setTelegramSettings] = useState(() => {
+    const saved = localStorage.getItem('telegramSettings');
+    return saved ? JSON.parse(saved) : { botToken: '', chatId: '' };
+  });
   const [holdingCartId, setHoldingCartId] = useState<string | null>(null);
   const [holdProgress, setHoldProgress] = useState(0);
   const holdTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -171,6 +177,10 @@ const Index = () => {
   useEffect(() => {
     localStorage.setItem('users', JSON.stringify(users));
   }, [users]);
+
+  useEffect(() => {
+    localStorage.setItem('telegramSettings', JSON.stringify(telegramSettings));
+  }, [telegramSettings]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -218,6 +228,80 @@ const Index = () => {
   const deleteCashier = (username: string) => {
     setUsers(users.filter(u => u.username !== username));
     toast({ title: 'Кассир удалён' });
+  };
+
+  const saveTelegramSettings = () => {
+    if (!telegramSettings.botToken || !telegramSettings.chatId) {
+      toast({ title: 'Заполните все поля', variant: 'destructive' });
+      return;
+    }
+    setTelegramSettingsDialog(false);
+    toast({ title: 'Настройки Telegram сохранены' });
+  };
+
+  const sendReportToTelegram = async () => {
+    if (!telegramSettings.botToken || !telegramSettings.chatId) {
+      toast({ title: 'Настройте Telegram в настройках', variant: 'destructive' });
+      return;
+    }
+
+    setSendingReport(true);
+
+    try {
+      const sessionSales = sessionStartTime 
+        ? sales.filter(s => s.timestamp >= sessionStartTime)
+        : sales;
+      
+      const sessionRevenue = sessionSales.reduce((sum, s) => sum + s.total, 0);
+      const sessionItemsCount = sessionSales.reduce((sum, s) => 
+        sum + s.items.reduce((iSum, i) => iSum + i.quantity, 0), 0
+      );
+
+      const topProducts = products
+        .filter(p => p.salesCount > 0)
+        .sort((a, b) => b.salesCount - a.salesCount)
+        .slice(0, 5);
+
+      const reportText = `📊 *Отчёт о продажах*\n\n` +
+        `💼 *Хлеб Бабушкин*\n` +
+        `👤 Кассир: ${currentUser?.name}\n` +
+        `📅 Дата: ${new Date().toLocaleDateString('ru-RU')}\n` +
+        `⏰ Время: ${new Date().toLocaleTimeString('ru-RU')}\n\n` +
+        `————————————\n\n` +
+        `💰 *Выручка за смену:* ${sessionRevenue} ₽\n` +
+        `📦 *Продано товаров:* ${sessionItemsCount} шт\n` +
+        `🛋️ *Кол\u0438чество продаж:* ${sessionSales.length}\n\n` +
+        `————————————\n\n` +
+        `🏆 *Топ-5 товаров:*\n` +
+        topProducts.map((p, i) => 
+          `${i + 1}\. ${p.name} \- ${p.salesCount} шт`
+        ).join('\n');
+
+      const url = `https://api.telegram.org/bot${telegramSettings.botToken}/sendMessage`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: telegramSettings.chatId,
+          text: reportText,
+          parse_mode: 'MarkdownV2'
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Ошибка отправки');
+      }
+
+      toast({ title: 'Отчёт отправлен в Telegram!' });
+    } catch (error) {
+      toast({ 
+        title: 'Ошибка отправки', 
+        description: 'Проверьте настройки Telegram',
+        variant: 'destructive' 
+      });
+    } finally {
+      setSendingReport(false);
+    }
   };
 
   const handleLogout = () => {
@@ -566,8 +650,21 @@ const Index = () => {
                     <Icon name="Users" size={16} className="mr-1" />
                     Кассиры
                   </Button>
+                  <Button variant="ghost" size="sm" onClick={() => setTelegramSettingsDialog(true)}>
+                    <Icon name="Settings" size={16} className="mr-1" />
+                    Telegram
+                  </Button>
                 </>
               )}
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={sendReportToTelegram}
+                disabled={sendingReport}
+              >
+                <Icon name="Send" size={16} className="mr-1" />
+                {sendingReport ? 'Отправка...' : 'Отчёт в Telegram'}
+              </Button>
               <Button variant="ghost" size="sm" onClick={handleLogout}>
                 <Icon name="LogOut" size={16} className="mr-1" />
                 Выйти
@@ -1012,6 +1109,44 @@ const Index = () => {
               Отмена
             </Button>
             <Button onClick={addCashier}>Добавить</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={telegramSettingsDialog} onOpenChange={setTelegramSettingsDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Настройки Telegram</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Bot Token</Label>
+              <Input 
+                placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
+                value={telegramSettings.botToken} 
+                onChange={(e) => setTelegramSettings({...telegramSettings, botToken: e.target.value})} 
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Получите токен у @BotFather в Telegram
+              </p>
+            </div>
+            <div>
+              <Label>Chat ID</Label>
+              <Input 
+                placeholder="-1001234567890"
+                value={telegramSettings.chatId} 
+                onChange={(e) => setTelegramSettings({...telegramSettings, chatId: e.target.value})} 
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                ID чата или группы для отправки отчётов
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTelegramSettingsDialog(false)}>
+              Отмена
+            </Button>
+            <Button onClick={saveTelegramSettings}>Сохранить</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
