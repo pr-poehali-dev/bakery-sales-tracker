@@ -329,7 +329,7 @@ const Index = () => {
   };
 
   const completeSale = () => {
-    if (activeCart.items.length === 0) {
+    if (!activeCart || activeCart.items.length === 0) {
       toast({ title: 'Корзина пуста', variant: 'destructive' });
       return;
     }
@@ -1125,13 +1125,13 @@ const Index = () => {
             open={paymentMethodDialog}
             onOpenChange={setPaymentMethodDialog}
             onSelect={finalizeSale}
-            total={activeCart.items.reduce((sum, item) => {
+            total={activeCart?.items.reduce((sum, item) => {
               const basePrice = item.coffeeSize && item.category === 'coffee'
                 ? item.price * COFFEE_SIZES[item.coffeeSize].multiplier
                 : item.price;
               const finalPrice = item.customPrice || basePrice;
               return sum + (finalPrice * item.quantity);
-            }, 0)}
+            }, 0) || 0}
           />
           
           <EndShiftDialog
