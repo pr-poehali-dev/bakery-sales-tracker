@@ -110,8 +110,13 @@ const Index = () => {
   
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [sessionStartTime, setSessionStartTime] = useState<number | null>(null);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [sales, setSales] = useState<Sale[]>(() => {
+    const saved = localStorage.getItem('sales');
+    return saved ? JSON.parse(saved) : [];
+  });
   
   const [carts, setCarts] = useState<Cart[]>([{ id: '1', name: 'Корзина 1', items: [], createdAt: Date.now() }]);
   const [activeCartId, setActiveCartId] = useState('1');
@@ -153,6 +158,7 @@ const Index = () => {
     if (username === ADMIN_USER.username && password === ADMIN_USER.password) {
       setIsAuthenticated(true);
       setCurrentUser(ADMIN_USER);
+      setSessionStartTime(Date.now());
       toast({ title: `Добро пожаловать, ${ADMIN_USER.name}!` });
     } else {
       toast({ title: 'Неверный логин или пароль', variant: 'destructive' });
@@ -162,10 +168,15 @@ const Index = () => {
   const handleLogout = () => {
     setIsAuthenticated(false);
     setCurrentUser(null);
+    setSessionStartTime(null);
     setUsername('');
     setPassword('');
     toast({ title: 'До свидания!' });
   };
+
+  useEffect(() => {
+    localStorage.setItem('sales', JSON.stringify(sales));
+  }, [sales]);
 
   const createFlyingAnimation = (event: React.MouseEvent, product: Product) => {
     if (!cartRef.current) return;
@@ -230,6 +241,23 @@ const Index = () => {
   const completeSale = (paymentMethod: 'cash' | 'card') => {
     if (activeCart.items.length === 0) return;
     const total = activeCart.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    
+    const sale: Sale = {
+      id: Date.now().toString(),
+      items: activeCart.items,
+      total,
+      timestamp: Date.now(),
+      cashier: currentUser?.name || 'Unknown',
+      paymentMethod
+    };
+    
+    setSales([...sales, sale]);
+    
+    activeCart.items.forEach(cartItem => {
+      setProducts(products.map(p =>
+        p.id === cartItem.id ? { ...p, salesCount: (p.salesCount || 0) + cartItem.quantity } : p
+      ));
+    });
     
     setCarts(carts.map(cart =>
       cart.id === activeCartId ? { ...cart, items: [] } : cart
@@ -321,7 +349,7 @@ const Index = () => {
               <div className="w-20 h-20 bg-primary rounded-full flex items-center justify-center mx-auto mb-4">
                 <Icon name="Store" size={40} className="text-white" />
               </div>
-              <h1 className="text-3xl font-bold mb-2">Касса</h1>
+              <h1 className="text-3xl font-bold mb-2">Хлеб Бабушкин</h1>
               <p className="text-muted-foreground">Вход в систему</p>
             </div>
             <div className="space-y-4">
@@ -367,7 +395,7 @@ const Index = () => {
                 <Icon name="Store" size={24} className="text-white" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold">Касса</h1>
+                <h1 className="text-2xl font-bold">Хлеб Бабушкин</h1>
                 <p className="text-sm text-muted-foreground">{currentUser?.name}</p>
               </div>
             </div>
@@ -394,6 +422,54 @@ const Index = () => {
       </header>
 
       <div className="container mx-auto px-4 py-6">
+        {sessionStartTime && (() => {
+          const sessionSales = sales.filter(s => s.timestamp >= sessionStartTime);
+          const sessionRevenue = sessionSales.reduce((sum, s) => sum + s.total, 0);
+          const sessionItemsCount = sessionSales.reduce((sum, s) => 
+            sum + s.items.reduce((iSum, i) => iSum + i.quantity, 0), 0
+          );
+          
+          return (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              <Card className="bg-gradient-to-br from-primary to-orange-600 text-white">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm opacity-90 mb-1">Выручка за смену</p>
+                      <p className="text-3xl font-bold">{sessionRevenue} ₽</p>
+                    </div>
+                    <Icon name="TrendingUp" size={40} className="opacity-80" />
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm opacity-90 mb-1">Продано товаров</p>
+                      <p className="text-3xl font-bold">{sessionItemsCount} шт</p>
+                    </div>
+                    <Icon name="Package" size={40} className="opacity-80" />
+                  </div>
+                </CardContent>
+              </Card>
+              
+              <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm opacity-90 mb-1">Количество продаж</p>
+                      <p className="text-3xl font-bold">{sessionSales.length}</p>
+                    </div>
+                    <Icon name="ShoppingBag" size={40} className="opacity-80" />
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          );
+        })()}
+        
         <div className="grid lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2 space-y-6">
             <div>
