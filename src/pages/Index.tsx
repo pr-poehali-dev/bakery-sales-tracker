@@ -45,6 +45,7 @@ interface Cart {
   name: string;
   items: CartItem[];
   createdAt: number;
+  startTime: number;
 }
 
 interface Sale {
@@ -122,8 +123,9 @@ const Index = () => {
     return saved ? JSON.parse(saved) : [];
   });
   
-  const [carts, setCarts] = useState<Cart[]>([{ id: '1', name: 'Корзина 1', items: [], createdAt: Date.now() }]);
+  const [carts, setCarts] = useState<Cart[]>([{ id: '1', name: 'Корзина 1', items: [], createdAt: Date.now(), startTime: Date.now() }]);
   const [activeCartId, setActiveCartId] = useState('1');
+  const [currentTime, setCurrentTime] = useState(Date.now());
   const [products, setProducts] = useState<Product[]>(() => {
     const saved = localStorage.getItem('products');
     return saved ? JSON.parse(saved) : INITIAL_PRODUCTS;
@@ -165,6 +167,13 @@ const Index = () => {
   useEffect(() => {
     localStorage.setItem('users', JSON.stringify(users));
   }, [users]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const handleLogin = () => {
     const user = users.find(u => u.username === username && u.password === password);
@@ -280,6 +289,37 @@ const Index = () => {
     }));
   };
 
+  const addNewCart = () => {
+    const newCartNumber = carts.length + 1;
+    const newCart: Cart = {
+      id: Date.now().toString(),
+      name: `Корзина ${newCartNumber}`,
+      items: [],
+      createdAt: Date.now(),
+      startTime: Date.now()
+    };
+    setCarts([...carts, newCart]);
+    setActiveCartId(newCart.id);
+    toast({ title: `Открыта ${newCart.name}` });
+  };
+
+  const closeCart = (cartId: string) => {
+    if (carts.length === 1) {
+      toast({ title: 'Нельзя закрыть единственную корзину', variant: 'destructive' });
+      return;
+    }
+    const cartToClose = carts.find(c => c.id === cartId);
+    if (cartToClose?.items.length > 0) {
+      toast({ title: 'Очистите корзину перед закрытием', variant: 'destructive' });
+      return;
+    }
+    setCarts(carts.filter(c => c.id !== cartId));
+    if (activeCartId === cartId) {
+      setActiveCartId(carts.find(c => c.id !== cartId)?.id || carts[0].id);
+    }
+    toast({ title: 'Корзина закрыта' });
+  };
+
   const completeSale = (paymentMethod: 'cash' | 'card') => {
     if (activeCart.items.length === 0) return;
     const total = activeCart.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
@@ -301,9 +341,14 @@ const Index = () => {
       ));
     });
     
-    setCarts(carts.map(cart =>
-      cart.id === activeCartId ? { ...cart, items: [] } : cart
-    ));
+    const updatedCarts = carts.filter(c => c.id !== activeCartId);
+    if (updatedCarts.length === 0) {
+      setCarts([{ id: Date.now().toString(), name: 'Корзина 1', items: [], createdAt: Date.now(), startTime: Date.now() }]);
+      setActiveCartId(Date.now().toString());
+    } else {
+      setCarts(updatedCarts);
+      setActiveCartId(updatedCarts[0].id);
+    }
     
     setPaymentDialog(false);
     toast({ title: `Продажа завершена! Сумма: ${total} ₽`, description: `Способ оплаты: ${paymentMethod === 'cash' ? 'Наличные' : 'Карта'}` });
@@ -376,6 +421,19 @@ const Index = () => {
     setCategories(newCategories);
     dragItem.current = null;
     dragOverItem.current = null;
+  };
+
+  const formatTime = (milliseconds: number) => {
+    const seconds = Math.floor(milliseconds / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    const remainingSeconds = seconds % 60;
+    
+    if (hours > 0) {
+      return `${hours}:${remainingMinutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
+    }
+    return `${remainingMinutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
   const openCategoryDialog = (categoryId: string) => {
@@ -562,11 +620,63 @@ const Index = () => {
             </div>
           </div>
 
-          <div className="lg:col-span-1">
+          <div className="lg:col-span-1 space-y-4">
+            <div className="flex gap-2 overflow-x-auto pb-2">
+              {carts.map(cart => (
+                <Button
+                  key={cart.id}
+                  variant={activeCartId === cart.id ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setActiveCartId(cart.id)}
+                  className="relative min-w-[140px] h-auto py-2 px-3 flex flex-col items-start"
+                >
+                  <div className="flex items-center justify-between w-full mb-1">
+                    <span className="font-semibold text-xs">{cart.name}</span>
+                    {carts.length > 1 && cart.items.length === 0 && (
+                      <Icon 
+                        name="X" 
+                        size={14} 
+                        className="ml-2 hover:text-red-500" 
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          closeCart(cart.id);
+                        }}
+                      />
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 w-full">
+                    <Icon name="Clock" size={12} className="opacity-70" />
+                    <span className="text-xs opacity-80">
+                      {formatTime(currentTime - cart.startTime)}
+                    </span>
+                  </div>
+                  {cart.items.length > 0 && (
+                    <Badge variant="secondary" className="absolute -top-2 -right-2 h-5 w-5 p-0 flex items-center justify-center text-xs">
+                      {cart.items.reduce((sum, item) => sum + item.quantity, 0)}
+                    </Badge>
+                  )}
+                </Button>
+              ))}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={addNewCart}
+                className="min-w-[40px] h-auto py-2 px-2"
+              >
+                <Icon name="Plus" size={16} />
+              </Button>
+            </div>
+
             <Card className="sticky top-24" ref={cartRef}>
               <CardContent className="p-6">
-                <h3 className="text-xl font-bold mb-4">Корзина</h3>
-                <div className="space-y-3 max-h-[500px] overflow-y-auto">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-bold">{activeCart.name}</h3>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Icon name="Timer" size={16} />
+                    <span className="font-mono">{formatTime(currentTime - activeCart.startTime)}</span>
+                  </div>
+                </div>
+                <div className="space-y-3 max-h-[400px] overflow-y-auto">
                   {activeCart.items.length === 0 ? (
                     <p className="text-center text-muted-foreground py-8">Корзина пуста</p>
                   ) : (
