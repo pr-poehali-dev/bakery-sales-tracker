@@ -323,9 +323,12 @@ const Index = () => {
       toast({ title: 'Очистите корзину перед закрытием', variant: 'destructive' });
       return;
     }
-    setCarts(carts.filter(c => c.id !== cartId));
-    if (activeCartId === cartId) {
-      setActiveCartId(carts.find(c => c.id !== cartId)?.id || carts[0].id);
+    
+    const remainingCarts = carts.filter(c => c.id !== cartId);
+    setCarts(remainingCarts);
+    
+    if (activeCartId === cartId && remainingCarts.length > 0) {
+      setActiveCartId(remainingCarts[0].id);
     }
     toast({ title: 'Корзина закрыта' });
   };
