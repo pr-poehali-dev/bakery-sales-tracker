@@ -45,7 +45,7 @@ interface Cart {
   name: string;
   items: CartItem[];
   createdAt: number;
-  startTime: number;
+  startTime: number | null;
 }
 
 interface Sale {
@@ -123,7 +123,7 @@ const Index = () => {
     return saved ? JSON.parse(saved) : [];
   });
   
-  const [carts, setCarts] = useState<Cart[]>([{ id: '1', name: 'Корзина 1', items: [], createdAt: Date.now(), startTime: Date.now() }]);
+  const [carts, setCarts] = useState<Cart[]>([{ id: '1', name: 'Корзина 1', items: [], createdAt: Date.now(), startTime: null }]);
   const [activeCartId, setActiveCartId] = useState('1');
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [products, setProducts] = useState<Product[]>(() => {
@@ -258,6 +258,8 @@ const Index = () => {
       setCarts(carts.map(cart => {
         if (cart.id === activeCartId) {
           const existingItem = cart.items.find(item => item.id === product.id);
+          const isFirstItem = cart.items.length === 0;
+          
           if (existingItem) {
             return {
               ...cart,
@@ -266,7 +268,11 @@ const Index = () => {
               )
             };
           } else {
-            return { ...cart, items: [...cart.items, { ...product, quantity: 1 }] };
+            return { 
+              ...cart, 
+              items: [...cart.items, { ...product, quantity: 1 }],
+              startTime: isFirstItem ? Date.now() : cart.startTime
+            };
           }
         }
         return cart;
@@ -296,7 +302,7 @@ const Index = () => {
       name: `Корзина ${newCartNumber}`,
       items: [],
       createdAt: Date.now(),
-      startTime: Date.now()
+      startTime: null
     };
     setCarts([...carts, newCart]);
     setActiveCartId(newCart.id);
@@ -343,8 +349,9 @@ const Index = () => {
     
     const updatedCarts = carts.filter(c => c.id !== activeCartId);
     if (updatedCarts.length === 0) {
-      setCarts([{ id: Date.now().toString(), name: 'Корзина 1', items: [], createdAt: Date.now(), startTime: Date.now() }]);
-      setActiveCartId(Date.now().toString());
+      const newId = Date.now().toString();
+      setCarts([{ id: newId, name: 'Корзина 1', items: [], createdAt: Date.now(), startTime: null }]);
+      setActiveCartId(newId);
     } else {
       setCarts(updatedCarts);
       setActiveCartId(updatedCarts[0].id);
@@ -423,7 +430,10 @@ const Index = () => {
     dragOverItem.current = null;
   };
 
-  const formatTime = (milliseconds: number) => {
+  const formatTime = (startTime: number | null) => {
+    if (!startTime) return '--:--';
+    
+    const milliseconds = currentTime - startTime;
     const seconds = Math.floor(milliseconds / 1000);
     const minutes = Math.floor(seconds / 60);
     const hours = Math.floor(minutes / 60);
@@ -647,7 +657,7 @@ const Index = () => {
                   <div className="flex items-center gap-2 w-full">
                     <Icon name="Clock" size={12} className="opacity-70" />
                     <span className="text-xs opacity-80">
-                      {formatTime(currentTime - cart.startTime)}
+                      {formatTime(cart.startTime)}
                     </span>
                   </div>
                   {cart.items.length > 0 && (
@@ -671,10 +681,12 @@ const Index = () => {
               <CardContent className="p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-xl font-bold">{activeCart.name}</h3>
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                    <Icon name="Timer" size={16} />
-                    <span className="font-mono">{formatTime(currentTime - activeCart.startTime)}</span>
-                  </div>
+                  {activeCart.startTime && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Icon name="Timer" size={16} />
+                      <span className="font-mono">{formatTime(activeCart.startTime)}</span>
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-3 max-h-[400px] overflow-y-auto">
                   {activeCart.items.length === 0 ? (
