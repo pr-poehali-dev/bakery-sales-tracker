@@ -265,19 +265,19 @@ const Index = () => {
         .sort((a, b) => b.salesCount - a.salesCount)
         .slice(0, 5);
 
-      const reportText = `📊 *Отчёт о продажах*\n\n` +
-        `💼 *Хлеб Бабушкин*\n` +
+      const reportText = `📊 ОТЧЁТ О ПРОДАЖАХ\n\n` +
+        `💼 Хлеб Бабушкин\n` +
         `👤 Кассир: ${currentUser?.name}\n` +
         `📅 Дата: ${new Date().toLocaleDateString('ru-RU')}\n` +
         `⏰ Время: ${new Date().toLocaleTimeString('ru-RU')}\n\n` +
-        `————————————\n\n` +
-        `💰 *Выручка за смену:* ${sessionRevenue} ₽\n` +
-        `📦 *Продано товаров:* ${sessionItemsCount} шт\n` +
-        `🛋️ *Кол\u0438чество продаж:* ${sessionSales.length}\n\n` +
-        `————————————\n\n` +
-        `🏆 *Топ-5 товаров:*\n` +
+        `━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `💰 Выручка за смену: ${sessionRevenue} ₽\n` +
+        `📦 Продано товаров: ${sessionItemsCount} шт\n` +
+        `🛋️ Количество продаж: ${sessionSales.length}\n\n` +
+        `━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `🏆 ТОП-5 ТОВАРОВ:\n` +
         topProducts.map((p, i) => 
-          `${i + 1}\. ${p.name} \- ${p.salesCount} шт`
+          `${i + 1}. ${p.name} - ${p.salesCount} шт`
         ).join('\n');
 
       const response = await fetch('https://functions.poehali.dev/c8e9896a-524b-4164-912d-ec49d9af0f35', {

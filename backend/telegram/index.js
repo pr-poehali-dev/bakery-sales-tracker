@@ -56,8 +56,7 @@ exports.handler = async (event, context) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: chatId,
-        text: reportText,
-        parse_mode: 'MarkdownV2'
+        text: reportText
       })
     });
 
