@@ -148,6 +148,10 @@ const Index = () => {
   const [newProduct, setNewProduct] = useState({ name: '', category: 'pies', price: '', image: '🍞' });
   const [newCategory, setNewCategory] = useState({ id: '', label: '', emoji: '📦' });
   const [newCashier, setNewCashier] = useState({ username: '', password: '', name: '' });
+  const [holdingCartId, setHoldingCartId] = useState<string | null>(null);
+  const [holdProgress, setHoldProgress] = useState(0);
+  const holdTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const holdProgressRef = useRef<NodeJS.Timeout | null>(null);
   
   const { toast } = useToast();
   const activeCart = carts.find(c => c.id === activeCartId) || carts[0];
@@ -324,6 +328,39 @@ const Index = () => {
       setActiveCartId(carts.find(c => c.id !== cartId)?.id || carts[0].id);
     }
     toast({ title: 'Корзина закрыта' });
+  };
+
+  const handleHoldStart = (cartId: string) => {
+    if (carts.length === 1) return;
+    const cart = carts.find(c => c.id === cartId);
+    if (cart?.items.length > 0) return;
+
+    setHoldingCartId(cartId);
+    setHoldProgress(0);
+
+    let progress = 0;
+    holdProgressRef.current = setInterval(() => {
+      progress += 5;
+      setHoldProgress(progress);
+    }, 100);
+
+    holdTimerRef.current = setTimeout(() => {
+      closeCart(cartId);
+      handleHoldEnd();
+    }, 2000);
+  };
+
+  const handleHoldEnd = () => {
+    if (holdTimerRef.current) {
+      clearTimeout(holdTimerRef.current);
+      holdTimerRef.current = null;
+    }
+    if (holdProgressRef.current) {
+      clearInterval(holdProgressRef.current);
+      holdProgressRef.current = null;
+    }
+    setHoldingCartId(null);
+    setHoldProgress(0);
   };
 
   const completeSale = (paymentMethod: 'cash' | 'card') => {
@@ -640,15 +677,47 @@ const Index = () => {
                   <div className="flex items-center justify-between w-full mb-1">
                     <span className="font-semibold text-xs">{cart.name}</span>
                     {carts.length > 1 && cart.items.length === 0 && (
-                      <Icon 
-                        name="X" 
-                        size={14} 
-                        className="ml-2 hover:text-red-500" 
-                        onClick={(e) => {
+                      <div
+                        className="relative ml-2 w-6 h-6 flex items-center justify-center cursor-pointer"
+                        onMouseDown={(e) => {
                           e.stopPropagation();
-                          closeCart(cart.id);
+                          handleHoldStart(cart.id);
                         }}
-                      />
+                        onMouseUp={(e) => {
+                          e.stopPropagation();
+                          handleHoldEnd();
+                        }}
+                        onMouseLeave={(e) => {
+                          e.stopPropagation();
+                          handleHoldEnd();
+                        }}
+                        onTouchStart={(e) => {
+                          e.stopPropagation();
+                          handleHoldStart(cart.id);
+                        }}
+                        onTouchEnd={(e) => {
+                          e.stopPropagation();
+                          handleHoldEnd();
+                        }}
+                      >
+                        {holdingCartId === cart.id && (
+                          <div 
+                            className="absolute inset-0 rounded-full bg-red-500"
+                            style={{
+                              transform: `scale(${holdProgress / 100})`,
+                              opacity: 0.3,
+                              transition: 'none'
+                            }}
+                          />
+                        )}
+                        <Icon 
+                          name="X" 
+                          size={14} 
+                          className={`relative z-10 transition-colors ${
+                            holdingCartId === cart.id ? 'text-red-600' : 'hover:text-red-500'
+                          }`}
+                        />
+                      </div>
                     )}
                   </div>
                   <div className="flex items-center gap-2 w-full">
