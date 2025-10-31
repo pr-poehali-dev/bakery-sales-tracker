@@ -8,145 +8,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import Icon from '@/components/ui/icon';
 import { useToast } from '@/hooks/use-toast';
-
-type UserRole = 'admin' | 'cashier';
-
-interface User {
-  username: string;
-  password: string;
-  name: string;
-  role: UserRole;
-}
-
-interface Category {
-  id: string;
-  label: string;
-  emoji: string;
-}
-
-interface Product {
-  id: string;
-  name: string;
-  category: string;
-  price: number;
-  image: string;
-  salesCount: number;
-  customImage?: string;
-}
-
-interface CartItem extends Product {
-  quantity: number;
-  coffeeSize?: 'small' | 'medium' | 'large';
-  customPrice?: number;
-}
-
-interface Cart {
-  id: string;
-  name: string;
-  items: CartItem[];
-  createdAt: number;
-  startTime: number | null;
-}
-
-interface Sale {
-  id: string;
-  items: CartItem[];
-  total: number;
-  timestamp: number;
-  cashier: string;
-  paymentMethod: 'cash' | 'card';
-  returned?: boolean;
-  returnTimestamp?: number;
-  returnReason?: string;
-}
-
-interface WriteOff {
-  id: string;
-  productId: string;
-  productName: string;
-  quantity: number;
-  price: number;
-  totalAmount: number;
-  reason: string;
-  timestamp: number;
-  cashier: string;
-}
-
-const COFFEE_SIZES = {
-  small: { label: '100 мл', multiplier: 1 },
-  medium: { label: '250 мл', multiplier: 1.3 },
-  large: { label: '400 мл', multiplier: 1.6 }
-};
-
-const INITIAL_CATEGORIES: Category[] = [
-  { id: 'pies', label: 'Пирожки', emoji: '🥟' },
-  { id: 'coffee', label: 'Кофе и Чай', emoji: '☕' },
-  { id: 'sweets', label: 'Сладкое', emoji: '🍰' },
-  { id: 'kitchen', label: 'Кухня', emoji: '🍔' },
-  { id: 'drinks', label: 'Напитки', emoji: '🥤' }
-];
-
-const INITIAL_PRODUCTS: Product[] = [
-  { id: '1', name: 'Пирожок с капустой', category: 'pies', price: 50, image: '🥟', salesCount: 0 },
-  { id: '2', name: 'Пирожок с картошкой', category: 'pies', price: 50, image: '🥟', salesCount: 0 },
-  { id: '3', name: 'Пирожок с мясом', category: 'pies', price: 60, image: '🥟', salesCount: 0 },
-  { id: '4', name: 'Чебурек с мясом', category: 'pies', price: 80, image: '🥙', salesCount: 0 },
-  { id: '5', name: 'Чебурек с сыром', category: 'pies', price: 75, image: '🥙', salesCount: 0 },
-  { id: '6', name: 'Хачапури с сыром', category: 'pies', price: 120, image: '🫓', salesCount: 0 },
-  { id: '7', name: 'Хачапури с сыром и зеленью', category: 'pies', price: 130, image: '🫓', salesCount: 0 },
-  { id: '8', name: 'Хачапури с мясом', category: 'pies', price: 140, image: '🫓', salesCount: 0 },
-  { id: '9', name: 'Матнакаш', category: 'pies', price: 90, image: '🍞', salesCount: 0 },
-  { id: '10', name: 'Армянский тонкий лаваш', category: 'pies', price: 40, image: '🫓', salesCount: 0 },
-  { id: '11', name: 'Хлеб ржаной', category: 'pies', price: 60, image: '🍞', salesCount: 0 },
-  { id: '12', name: 'Хлеб рижский', category: 'pies', price: 70, image: '🍞', salesCount: 0 },
-  { id: '13', name: 'Хлеб черный с семечками', category: 'pies', price: 80, image: '🍞', salesCount: 0 },
-  
-  { id: '14', name: 'Эспрессо', category: 'coffee', price: 100, image: '☕', salesCount: 0 },
-  { id: '15', name: 'Капучино', category: 'coffee', price: 140, image: '☕', salesCount: 0 },
-  { id: '16', name: 'Латте', category: 'coffee', price: 150, image: '☕', salesCount: 0 },
-  { id: '17', name: 'Американо', category: 'coffee', price: 110, image: '☕', salesCount: 0 },
-  { id: '18', name: 'Флэт уайт', category: 'coffee', price: 145, image: '☕', salesCount: 0 },
-  { id: '19', name: 'Раф', category: 'coffee', price: 160, image: '☕', salesCount: 0 },
-  { id: '20', name: 'Кофе на песке', category: 'coffee', price: 180, image: '☕', salesCount: 0 },
-  { id: '21', name: 'Чай пакетированный', category: 'coffee', price: 60, image: '🍵', salesCount: 0 },
-  { id: '22', name: 'Лавандовый раф', category: 'coffee', price: 170, image: '☕', salesCount: 0 },
-  { id: '23', name: 'Облепиховый чай', category: 'coffee', price: 120, image: '🍵', salesCount: 0 },
-  
-  { id: '24', name: 'Шоколадный кекс', category: 'sweets', price: 80, image: '🧁', salesCount: 0 },
-  { id: '25', name: 'Армянская пахлава', category: 'sweets', price: 100, image: '🥮', salesCount: 0 },
-  { id: '26', name: 'Чизкейк классический', category: 'sweets', price: 150, image: '🍰', salesCount: 0 },
-  { id: '27', name: 'Чизкейк шоколадный', category: 'sweets', price: 160, image: '🍰', salesCount: 0 },
-  { id: '28', name: 'Наполеон', category: 'sweets', price: 130, image: '🍰', salesCount: 0 },
-  { id: '29', name: 'Медовик', category: 'sweets', price: 140, image: '🍰', salesCount: 0 },
-  { id: '30', name: 'Булочка с изюмом', category: 'sweets', price: 50, image: '🥐', salesCount: 0 },
-  { id: '31', name: 'Булочка с маком', category: 'sweets', price: 50, image: '🥐', salesCount: 0 },
-  { id: '32', name: 'Булочка яблоко корица', category: 'sweets', price: 55, image: '🥐', salesCount: 0 },
-  { id: '33', name: 'Пончик', category: 'sweets', price: 60, image: '🍩', salesCount: 0 },
-  { id: '34', name: 'Сушки', category: 'sweets', price: 40, image: '🍪', salesCount: 0 },
-  { id: '35', name: 'Печенье монетки', category: 'sweets', price: 45, image: '🍪', salesCount: 0 },
-  { id: '36', name: 'Печенье с джемом', category: 'sweets', price: 50, image: '🍪', salesCount: 0 },
-  { id: '37', name: 'Козинаки в шоколаде', category: 'sweets', price: 70, image: '🍫', salesCount: 0 },
-  
-  { id: '38', name: 'Твистер', category: 'kitchen', price: 180, image: '🌯', salesCount: 0 },
-  { id: '39', name: 'Твистер де люкс', category: 'kitchen', price: 220, image: '🌯', salesCount: 0 },
-  { id: '40', name: 'Бургер', category: 'kitchen', price: 200, image: '🍔', salesCount: 0 },
-  { id: '41', name: 'Бургер де люкс', category: 'kitchen', price: 250, image: '🍔', salesCount: 0 },
-  { id: '42', name: 'Картофель фри средний', category: 'kitchen', price: 100, image: '🍟', salesCount: 0 },
-  { id: '43', name: 'Картофель фри большой', category: 'kitchen', price: 140, image: '🍟', salesCount: 0 },
-  { id: '44', name: 'Комбо (фри, бургер/твистер, кола)', category: 'kitchen', price: 350, image: '🍱', salesCount: 0 },
-  
-  { id: '45', name: 'Добрый кола', category: 'drinks', price: 80, image: '🥤', salesCount: 0 },
-  { id: '46', name: 'Азвкус сок', category: 'drinks', price: 70, image: '🧃', salesCount: 0 },
-  { id: '47', name: 'Аскания', category: 'drinks', price: 60, image: '🥤', salesCount: 0 },
-  { id: '48', name: 'Вода негазированная святой источник', category: 'drinks', price: 50, image: '💧', salesCount: 0 },
-];
-
-const ADMIN_USER: User = {
-  username: 'admin',
-  password: 'admin',
-  name: 'Администратор',
-  role: 'admin'
-};
+import { User, Category, Product, Cart, Sale, WriteOff } from '@/types';
+import { ADMIN_USER, INITIAL_CATEGORIES, INITIAL_PRODUCTS } from '@/constants';
+import { LoginForm } from '@/components/cash-register/LoginForm';
+import { Header } from '@/components/cash-register/Header';
+import { StatsCards } from '@/components/cash-register/StatsCards';
+import { CategoryGrid } from '@/components/cash-register/CategoryGrid';
+import { CartPanel } from '@/components/cash-register/CartPanel';
 
 const Index = () => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -188,7 +56,6 @@ const Index = () => {
   
   const [addProductDialog, setAddProductDialog] = useState(false);
   const [addCategoryDialog, setAddCategoryDialog] = useState(false);
-  const [editProductDialog, setEditProductDialog] = useState(false);
   const [paymentDialog, setPaymentDialog] = useState(false);
   const [addCashierDialog, setAddCashierDialog] = useState(false);
   const [manageCashiersDialog, setManageCashiersDialog] = useState(false);
@@ -205,7 +72,6 @@ const Index = () => {
   const [confirmReturnDialog, setConfirmReturnDialog] = useState(false);
   const [closeShiftDialog, setCloseShiftDialog] = useState(false);
   
-  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [newProduct, setNewProduct] = useState({ name: '', category: 'pies', price: '', image: '🍞' });
   const [newCategory, setNewCategory] = useState({ id: '', label: '', emoji: '📦' });
   const [newCashier, setNewCashier] = useState({ username: '', password: '', name: '' });
@@ -247,6 +113,10 @@ const Index = () => {
   useEffect(() => {
     localStorage.setItem('telegramSettings', JSON.stringify(telegramSettings));
   }, [telegramSettings]);
+
+  useEffect(() => {
+    localStorage.setItem('sales', JSON.stringify(sales));
+  }, [sales]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -390,35 +260,40 @@ const Index = () => {
         reportText += `🔙 Возвратов: ${returnedSales.length}\n`;
       }
       
-      reportText += `\n━━━━━━━━━━━━━━━━━━━━\n\n` +
-        `🏆 ТОП-5 ТОВАРОВ:\n` +
-        topProducts.map((p, i) => 
-          `${i + 1}. ${p.name} - ${p.salesCount} шт`
-        ).join('\n');
+      reportText += `\n━━━━━━━━━━━━━━━━━━━━\n\n`;
       
-      if (returnedSales.length > 0) {
-        reportText += `\n\n━━━━━━━━━━━━━━━━━━━━\n\n` +
-          `🔙 ВОЗВРАТЫ (${returnedSales.length}):\n` +
-          returnedSales.map((s) => {
-            const returnTime = s.returnTimestamp 
-              ? new Date(s.returnTimestamp).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })
-              : '—';
-            return `${returnTime} • ${s.total} ₽ (${s.paymentMethod === 'cash' ? 'наличные' : 'карта'})\n   Причина: ${s.returnReason || 'не указана'}`;
-          }).join('\n');
+      if (topProducts.length > 0) {
+        reportText += `🏆 ТОП-${topProducts.length} товаров:\n`;
+        topProducts.forEach((product, index) => {
+          reportText += `${index + 1}. ${product.name} — ${product.salesCount} шт\n`;
+        });
+        reportText += `\n━━━━━━━━━━━━━━━━━━━━\n\n`;
       }
 
       if (sessionWriteOffs.length > 0) {
-        reportText += `\n\n━━━━━━━━━━━━━━━━━━━━\n\n` +
-          `📋 СПИСАНИЯ (${sessionWriteOffs.length}):\n` +
-          sessionWriteOffs.map((w) => {
-            const writeOffTime = new Date(w.timestamp).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-            return `${writeOffTime} • ${w.productName} - ${w.quantity} шт (${w.totalAmount} ₽)\n   Причина: ${w.reason}`;
-          }).join('\n');
+        reportText += `❌ Списания (${sessionWriteOffs.length}):\n`;
+        sessionWriteOffs.forEach(writeOff => {
+          reportText += `• ${writeOff.productName} — ${writeOff.quantity} шт (${writeOff.totalAmount} ₽)\n`;
+          reportText += `  Причина: ${writeOff.reason}\n`;
+        });
+        reportText += `\n━━━━━━━━━━━━━━━━━━━━\n\n`;
       }
 
-      const response = await fetch('https://functions.poehali.dev/c8e9896a-524b-4164-912d-ec49d9af0f35', {
+      if (returnedSales.length > 0) {
+        reportText += `🔙 Возвраты (${returnedSales.length}):\n`;
+        returnedSales.forEach(sale => {
+          reportText += `• Чек ${sale.id.slice(-6)} — ${sale.total} ₽\n`;
+          if (sale.returnReason) {
+            reportText += `  Причина: ${sale.returnReason}\n`;
+          }
+        });
+      }
+
+      const response = await fetch('https://functions.yandexcloud.net/d4en92b61qdi4m6gqgv1', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
           botToken: telegramSettings.botToken,
           chatId: telegramSettings.chatId,
@@ -453,10 +328,6 @@ const Index = () => {
     toast({ title: 'До свидания!' });
   };
 
-  useEffect(() => {
-    localStorage.setItem('sales', JSON.stringify(sales));
-  }, [sales]);
-
   const createFlyingAnimation = (event: React.MouseEvent, product: Product) => {
     if (!cartRef.current) return;
     const clickX = event.clientX;
@@ -470,111 +341,126 @@ const Index = () => {
     flyingElement.className = 'fly-animation';
     flyingElement.style.left = `${clickX}px`;
     flyingElement.style.top = `${clickY}px`;
-    flyingElement.style.fontSize = '48px';
-    flyingElement.style.setProperty('--x-mid', `${(cartX - clickX) * 0.5}px`);
-    flyingElement.style.setProperty('--y-mid', `${(cartY - clickY) * 0.5 - 100}px`);
+    flyingElement.style.fontSize = '2rem';
     flyingElement.style.setProperty('--x-end', `${cartX - clickX}px`);
     flyingElement.style.setProperty('--y-end', `${cartY - clickY}px`);
-
+    flyingElement.style.setProperty('--x-mid', `${(cartX - clickX) / 2}px`);
+    flyingElement.style.setProperty('--y-mid', `${(cartY - clickY) / 2 - 50}px`);
+    
     document.body.appendChild(flyingElement);
-    setTimeout(() => document.body.removeChild(flyingElement), 800);
+    setTimeout(() => flyingElement.remove(), 800);
   };
 
   const addToCart = (product: Product, event: React.MouseEvent) => {
-    createFlyingAnimation(event, product);
-    setTimeout(() => {
-      setCarts(carts.map(cart => {
+    const existingItem = activeCart.items.find(item => item.id === product.id);
+    
+    if (existingItem) {
+      const updatedCarts = carts.map(cart => {
         if (cart.id === activeCartId) {
-          const existingItem = cart.items.find(item => item.id === product.id);
-          const isFirstItem = cart.items.length === 0;
-          
-          if (existingItem) {
-            return {
-              ...cart,
-              items: cart.items.map(item =>
-                item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
-              )
-            };
-          } else {
-            return { 
-              ...cart, 
-              items: [...cart.items, { ...product, quantity: 1 }],
-              startTime: isFirstItem ? Date.now() : cart.startTime
-            };
-          }
+          const updatedItems = cart.items.map(item =>
+            item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
+          );
+          return { ...cart, items: updatedItems };
         }
         return cart;
-      }));
-      audioRef.current?.play().catch(() => {});
-    }, 400);
+      });
+      setCarts(updatedCarts);
+    } else {
+      const newItem = { ...product, quantity: 1 };
+      const updatedCarts = carts.map(cart => {
+        if (cart.id === activeCartId) {
+          const updatedCart = { ...cart, items: [...cart.items, newItem] };
+          if (!cart.startTime) {
+            updatedCart.startTime = Date.now();
+          }
+          return updatedCart;
+        }
+        return cart;
+      });
+      setCarts(updatedCarts);
+    }
+
+    createFlyingAnimation(event, product);
+    
+    if (audioRef.current) {
+      audioRef.current.currentTime = 0;
+      audioRef.current.play().catch(() => {});
+    }
   };
 
-  const removeFromCart = (id: string) => {
-    setCarts(carts.map(cart => {
+  const removeFromCart = (productId: string) => {
+    const updatedCarts = carts.map(cart => {
       if (cart.id === activeCartId) {
-        return {
-          ...cart,
-          items: cart.items.map(item =>
-            item.id === id && item.quantity > 1 ? { ...item, quantity: item.quantity - 1 } : item
-          ).filter(item => item.id !== id || item.quantity > 1)
-        };
+        const existingItem = cart.items.find(item => item.id === productId);
+        
+        if (existingItem && existingItem.quantity > 1) {
+          const updatedItems = cart.items.map(item =>
+            item.id === productId ? { ...item, quantity: item.quantity - 1 } : item
+          );
+          return { ...cart, items: updatedItems };
+        } else {
+          const updatedItems = cart.items.filter(item => item.id !== productId);
+          return { ...cart, items: updatedItems };
+        }
       }
       return cart;
-    }));
+    });
+    
+    setCarts(updatedCarts);
   };
 
   const addNewCart = () => {
-    const newCartNumber = carts.length + 1;
+    const newId = Date.now().toString();
     const newCart: Cart = {
-      id: Date.now().toString(),
-      name: `Корзина ${newCartNumber}`,
+      id: newId,
+      name: `Корзина ${carts.length + 1}`,
       items: [],
       createdAt: Date.now(),
       startTime: null
     };
     setCarts([...carts, newCart]);
-    setActiveCartId(newCart.id);
-    toast({ title: `Открыта ${newCart.name}` });
+    setActiveCartId(newId);
+    toast({ title: `Создана ${newCart.name}` });
   };
 
   const closeCart = (cartId: string) => {
-    if (carts.length === 1) {
-      toast({ title: 'Нельзя закрыть единственную корзину', variant: 'destructive' });
-      return;
-    }
-    const cartToClose = carts.find(c => c.id === cartId);
-    if (cartToClose?.items.length > 0) {
-      toast({ title: 'Очистите корзину перед закрытием', variant: 'destructive' });
+    const cart = carts.find(c => c.id === cartId);
+    if (cart && cart.items.length > 0) {
+      toast({ title: 'Сначала оплатите или очистите корзину', variant: 'destructive' });
       return;
     }
     
-    const remainingCarts = carts.filter(c => c.id !== cartId);
-    setCarts(remainingCarts);
+    const updatedCarts = carts.filter(c => c.id !== cartId);
     
-    if (activeCartId === cartId && remainingCarts.length > 0) {
-      setActiveCartId(remainingCarts[0].id);
+    if (updatedCarts.length === 0) {
+      const newId = Date.now().toString();
+      setCarts([{ id: newId, name: 'Корзина 1', items: [], createdAt: Date.now(), startTime: null }]);
+      setActiveCartId(newId);
+    } else {
+      setCarts(updatedCarts);
+      if (activeCartId === cartId) {
+        setActiveCartId(updatedCarts[0].id);
+      }
     }
-    toast({ title: 'Корзина закрыта' });
   };
 
   const handleHoldStart = (cartId: string) => {
-    if (carts.length === 1) return;
-    const cart = carts.find(c => c.id === cartId);
-    if (cart?.items.length > 0) return;
-
     setHoldingCartId(cartId);
     setHoldProgress(0);
-
+    
     let progress = 0;
     holdProgressRef.current = setInterval(() => {
       progress += 5;
       setHoldProgress(progress);
-    }, 100);
+      if (progress >= 100) {
+        handleHoldEnd();
+      }
+    }, 50);
 
     holdTimerRef.current = setTimeout(() => {
       closeCart(cartId);
       handleHoldEnd();
-    }, 2000);
+    }, 1000);
   };
 
   const handleHoldEnd = () => {
@@ -767,15 +653,15 @@ const Index = () => {
       return;
     }
     setCategories([...categories, newCategory]);
-    setAddCategoryDialog(false);
     setNewCategory({ id: '', label: '', emoji: '📦' });
+    setAddCategoryDialog(false);
     toast({ title: 'Категория добавлена' });
   };
 
   const deleteCategory = (categoryId: string) => {
     const hasProducts = products.some(p => p.category === categoryId);
     if (hasProducts) {
-      toast({ title: 'В категории есть товары', variant: 'destructive' });
+      toast({ title: 'Сначала удалите товары из этой категории', variant: 'destructive' });
       return;
     }
     setCategories(categories.filter(c => c.id !== categoryId));
@@ -792,253 +678,79 @@ const Index = () => {
 
   const handleDragEnd = () => {
     if (dragItem.current === null || dragOverItem.current === null) return;
-    const newCategories = [...categories];
-    const draggedItem = newCategories[dragItem.current];
-    newCategories.splice(dragItem.current, 1);
-    newCategories.splice(dragOverItem.current, 0, draggedItem);
-    setCategories(newCategories);
+    
+    const categoryListCopy = [...categories];
+    const draggedItemContent = categoryListCopy[dragItem.current];
+    categoryListCopy.splice(dragItem.current, 1);
+    categoryListCopy.splice(dragOverItem.current, 0, draggedItemContent);
+    
     dragItem.current = null;
     dragOverItem.current = null;
+    
+    setCategories(categoryListCopy);
   };
 
   const formatTime = (startTime: number | null) => {
-    if (!startTime) return '--:--';
-    
-    const milliseconds = currentTime - startTime;
-    const seconds = Math.floor(milliseconds / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    const remainingMinutes = minutes % 60;
-    const remainingSeconds = seconds % 60;
-    
-    if (hours > 0) {
-      return `${hours}:${remainingMinutes.toString().padStart(2, '0')}:${remainingSeconds.toString().padStart(2, '0')}`;
-    }
-    return `${remainingMinutes}:${remainingSeconds.toString().padStart(2, '0')}`;
+    if (!startTime) return '00:00';
+    const elapsed = Math.floor((currentTime - startTime) / 1000);
+    const minutes = Math.floor(elapsed / 60);
+    const seconds = elapsed % 60;
+    return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
   };
 
   const openCategoryDialog = (categoryId: string) => {
     setSelectedCategoryId(categoryId);
     setCategoryDialog(true);
   };
-  
-  const filteredProducts = selectedCategoryId
+
+  const filteredProducts = selectedCategoryId 
     ? products.filter(p => p.category === selectedCategoryId)
     : [];
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <Card className="w-full max-w-md">
-          <CardContent className="p-8">
-            <div className="text-center mb-6">
-              <div className="w-20 h-20 bg-primary rounded-full flex items-center justify-center mx-auto mb-4">
-                <Icon name="Store" size={40} className="text-white" />
-              </div>
-              <h1 className="text-3xl font-bold mb-2">Хлеб Бабушкин</h1>
-              <p className="text-muted-foreground">Вход в систему</p>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="username">Логин</Label>
-                <Input
-                  id="username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-                />
-              </div>
-              <div>
-                <Label htmlFor="password">Пароль</Label>
-                <Input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleLogin()}
-                />
-              </div>
-              <Button className="w-full" size="lg" onClick={handleLogin}>
-                Войти
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <LoginForm
+        username={username}
+        password={password}
+        onUsernameChange={setUsername}
+        onPasswordChange={setPassword}
+        onLogin={handleLogin}
+      />
     );
   }
 
   return (
     <div className="min-h-screen bg-gray-50 pb-safe">
-      <header className="bg-white border-b sticky top-0 z-50 shadow-sm">
-        <div className="container mx-auto px-4 py-3 md:py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 md:gap-3">
-              <div className="w-10 h-10 md:w-12 md:h-12 bg-primary rounded-full flex items-center justify-center">
-                <Icon name="Store" size={20} className="text-white md:hidden" />
-                <Icon name="Store" size={24} className="text-white hidden md:block" />
-              </div>
-              <div>
-                <h1 className="text-xl md:text-2xl font-bold">Хлеб Бабушкин</h1>
-                <p className="text-xs md:text-sm text-muted-foreground">{currentUser?.name}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-1 md:gap-2">
-              {currentUser?.role === 'admin' && (
-                <>
-                  <Button variant="ghost" size="sm" onClick={() => setAddCategoryDialog(true)} className="hidden md:flex">
-                    <Icon name="FolderPlus" size={18} className="md:mr-1" />
-                    <span className="hidden lg:inline">Категория</span>
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setAddProductDialog(true)} className="hidden md:flex">
-                    <Icon name="Plus" size={18} className="md:mr-1" />
-                    <span className="hidden lg:inline">Товар</span>
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setManageCashiersDialog(true)} className="hidden md:flex">
-                    <Icon name="Users" size={18} className="md:mr-1" />
-                    <span className="hidden lg:inline">Кассиры</span>
-                  </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setTelegramSettingsDialog(true)} className="hidden md:flex">
-                    <Icon name="Settings" size={18} className="md:mr-1" />
-                    <span className="hidden lg:inline">Telegram</span>
-                  </Button>
-                </>
-              )}
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={sendReportToTelegram}
-                disabled={sendingReport}
-                className="hidden md:flex"
-              >
-                <Icon name="Send" size={18} className="md:mr-1" />
-                <span className="hidden lg:inline">{sendingReport ? 'Отправка...' : 'Отчёт'}</span>
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => setReturnSaleDialog(true)}>
-                <Icon name="Undo2" size={20} className="md:mr-1" />
-                <span className="hidden md:inline">Возврат</span>
-              </Button>
-              <Button variant="ghost" size="sm" onClick={handleCloseShift}>
-                <Icon name="DoorOpen" size={20} className="md:mr-1" />
-                <span className="hidden md:inline">Закрыть</span>
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
+      <Header
+        currentUser={currentUser}
+        sendingReport={sendingReport}
+        onAddCategory={() => setAddCategoryDialog(true)}
+        onAddProduct={() => setAddProductDialog(true)}
+        onManageCashiers={() => setManageCashiersDialog(true)}
+        onTelegramSettings={() => setTelegramSettingsDialog(true)}
+        onSendReport={sendReportToTelegram}
+        onReturn={() => setReturnSaleDialog(true)}
+        onCloseShift={handleCloseShift}
+      />
 
       <div className="container mx-auto px-4 py-6">
-        {sessionStartTime && (() => {
-          const sessionSales = sales.filter(s => s.timestamp >= sessionStartTime);
-          const sessionWriteOffs = writeOffs.filter(w => w.timestamp >= sessionStartTime);
-          
-          const notReturnedSales = sessionSales.filter(s => !s.returned);
-          const returnedSales = sessionSales.filter(s => s.returned);
-          
-          const salesTotal = notReturnedSales.reduce((sum, s) => sum + s.total, 0);
-          const returnsTotal = returnedSales.reduce((sum, s) => sum + s.total, 0);
-          const writeOffsTotal = sessionWriteOffs.reduce((sum, w) => sum + w.totalAmount, 0);
-          const sessionRevenue = salesTotal - writeOffsTotal;
-          
-          const sessionItemsCount = notReturnedSales.reduce((sum, s) => 
-            sum + s.items.reduce((iSum, i) => iSum + i.quantity, 0), 0
-          );
-          
-          const cashRevenue = notReturnedSales.filter(s => s.paymentMethod === 'cash').reduce((sum, s) => sum + s.total, 0);
-          const cardRevenue = notReturnedSales.filter(s => s.paymentMethod === 'card').reduce((sum, s) => sum + s.total, 0);
-          const cashReturns = returnedSales.filter(s => s.paymentMethod === 'cash').reduce((sum, s) => sum + s.total, 0);
-          const cardReturns = returnedSales.filter(s => s.paymentMethod === 'card').reduce((sum, s) => sum + s.total, 0);
-          
-          return (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4 mb-4 md:mb-6">
-              <Card className="bg-gradient-to-br from-primary to-orange-600 text-white">
-                <CardContent className="p-4 md:p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs md:text-sm opacity-90 mb-1">Выручка за смену</p>
-                      <p className="text-2xl md:text-3xl font-bold">{sessionRevenue} ₽</p>
-                      <div className="text-xs opacity-70 mt-1 space-y-0.5">
-                        {returnsTotal > 0 && (
-                          <p>Возвраты: -{returnsTotal} ₽</p>
-                        )}
-                        {writeOffsTotal > 0 && (
-                          <p>Списания: -{writeOffsTotal} ₽</p>
-                        )}
-                        <p>Наличные: {cashRevenue - cashReturns} ₽</p>
-                        <p>Безнал: {cardRevenue - cardReturns} ₽</p>
-                      </div>
-                    </div>
-                    <Icon name="TrendingUp" size={40} className="opacity-80" />
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
-                <CardContent className="p-4 md:p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs md:text-sm opacity-90 mb-1">Продано товаров</p>
-                      <p className="text-2xl md:text-3xl font-bold">{sessionItemsCount} шт</p>
-                    </div>
-                    <Icon name="Package" size={32} className="opacity-80 md:w-10 md:h-10" />
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white">
-                <CardContent className="p-4 md:p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs md:text-sm opacity-90 mb-1">Количество продаж</p>
-                      <p className="text-2xl md:text-3xl font-bold">{sessionSales.length}</p>
-                    </div>
-                    <Icon name="ShoppingBag" size={32} className="opacity-80 md:w-10 md:h-10" />
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          );
-        })()}
+        <StatsCards
+          sessionStartTime={sessionStartTime}
+          sales={sales}
+          writeOffs={writeOffs}
+        />
         
         <div className="grid lg:grid-cols-3 gap-4 md:gap-6">
           <div className="lg:col-span-2 space-y-4 md:space-y-6">
-            <div>
-              <h2 className="text-xl md:text-2xl font-bold mb-3 md:mb-4">Категории</h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
-                {categories.map((category, index) => (
-                  <Card
-                    key={category.id}
-                    className={`category-card cursor-pointer hover:shadow-lg border-2 border-transparent hover:border-primary ${
-                      currentUser?.role === 'admin' ? 'drag-handle' : ''
-                    }`}
-                    draggable={currentUser?.role === 'admin'}
-                    onDragStart={() => handleDragStart(index)}
-                    onDragEnter={() => handleDragEnter(index)}
-                    onDragEnd={handleDragEnd}
-                    onDragOver={(e) => e.preventDefault()}
-                    onClick={() => openCategoryDialog(category.id)}
-                  >
-                    <CardContent className="p-4 md:p-6 text-center relative min-h-[120px] md:min-h-[140px] flex flex-col items-center justify-center">
-                      <div className="text-4xl md:text-5xl mb-2">{category.emoji}</div>
-                      <p className="font-semibold text-sm md:text-base">{category.label}</p>
-                      {currentUser?.role === 'admin' && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="absolute top-2 right-2 h-6 w-6 p-0 opacity-0 hover:opacity-100"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteCategory(category.id);
-                          }}
-                        >
-                          <Icon name="Trash2" size={14} className="text-red-600" />
-                        </Button>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </div>
+            <CategoryGrid
+              categories={categories}
+              userRole={currentUser?.role || 'cashier'}
+              onCategoryClick={openCategoryDialog}
+              onDeleteCategory={deleteCategory}
+              onDragStart={handleDragStart}
+              onDragEnter={handleDragEnter}
+              onDragEnd={handleDragEnd}
+            />
           </div>
 
           <div className="lg:col-span-1 space-y-4">
@@ -1049,13 +761,13 @@ const Index = () => {
                   variant={activeCartId === cart.id ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => setActiveCartId(cart.id)}
-                  className="relative min-w-[140px] h-auto py-2 px-3 flex flex-col items-start"
+                  className="min-w-[120px] h-auto py-2 px-3 flex-col items-start gap-1 relative"
                 >
-                  <div className="flex items-center justify-between w-full mb-1">
-                    <span className="font-semibold text-xs">{cart.name}</span>
-                    {carts.length > 1 && cart.items.length === 0 && (
+                  <div className="flex items-center justify-between w-full">
+                    <span className="text-xs font-medium">{cart.name}</span>
+                    {carts.length > 1 && (
                       <div
-                        className="relative ml-2 w-6 h-6 flex items-center justify-center cursor-pointer"
+                        className="ml-2 rounded-full w-5 h-5 flex items-center justify-center hover:bg-red-100 transition-colors relative overflow-hidden"
                         onMouseDown={(e) => {
                           e.stopPropagation();
                           handleHoldStart(cart.id);
@@ -1120,60 +832,14 @@ const Index = () => {
               </Button>
             </div>
 
-            <Card className="sticky top-20 md:top-24" ref={cartRef}>
-              <CardContent className="p-4 md:p-6">
-                <div className="flex items-center justify-between mb-3 md:mb-4">
-                  <h3 className="text-lg md:text-xl font-bold">{activeCart.name}</h3>
-                  {activeCart.startTime && (
-                    <div className="flex items-center gap-1 md:gap-2 text-xs md:text-sm text-muted-foreground">
-                      <Icon name="Timer" size={14} className="md:w-4 md:h-4" />
-                      <span className="font-mono">{formatTime(activeCart.startTime)}</span>
-                    </div>
-                  )}
-                </div>
-                <div className="space-y-2 md:space-y-3 max-h-[300px] md:max-h-[400px] overflow-y-auto">
-                  {activeCart.items.length === 0 ? (
-                    <p className="text-center text-muted-foreground py-6 md:py-8 text-sm md:text-base">Корзина пуста</p>
-                  ) : (
-                    activeCart.items.map(item => (
-                      <div key={item.id} className="flex gap-2 md:gap-3 p-3 md:p-3 border rounded-lg">
-                        <div className="text-2xl md:text-3xl">{item.image}</div>
-                        <div className="flex-1 min-w-0">
-                          <h4 className="font-medium text-sm md:text-base mb-2 truncate">{item.name}</h4>
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-1 md:gap-2">
-                              <Button variant="outline" size="sm" className="h-9 w-9 md:h-8 md:w-8 p-0 touch-manipulation" onClick={() => removeFromCart(item.id)}>
-                                <Icon name="Minus" size={16} className="md:w-3 md:h-3" />
-                              </Button>
-                              <span className="font-medium w-8 md:w-6 text-center text-sm md:text-base">{item.quantity}</span>
-                              <Button variant="outline" size="sm" className="h-9 w-9 md:h-8 md:w-8 p-0 touch-manipulation" onClick={(e) => addToCart(item, e as any)}>
-                                <Icon name="Plus" size={16} className="md:w-3 md:h-3" />
-                              </Button>
-                            </div>
-                            <span className="font-bold text-primary text-sm md:text-base whitespace-nowrap">{(item.price * item.quantity)} ₽</span>
-                          </div>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-                
-                {activeCart.items.length > 0 && (
-                  <div className="mt-4 md:mt-6 pt-3 md:pt-4 border-t">
-                    <div className="flex justify-between items-center mb-3 md:mb-4">
-                      <span className="text-base md:text-lg font-bold">Итого:</span>
-                      <span className="text-xl md:text-2xl font-bold text-primary">
-                        {activeCart.items.reduce((sum, item) => sum + (item.price * item.quantity), 0)} ₽
-                      </span>
-                    </div>
-                    <Button className="w-full min-h-[56px] md:min-h-[44px] text-base md:text-lg touch-manipulation" size="lg" onClick={() => setPaymentDialog(true)}>
-                      <Icon name="CreditCard" size={20} className="mr-2" />
-                      Оплатить
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+            <CartPanel
+              ref={cartRef}
+              cart={activeCart}
+              onAddToCart={addToCart}
+              onRemoveFromCart={removeFromCart}
+              onOpenPayment={() => setPaymentDialog(true)}
+              formatTime={formatTime}
+            />
           </div>
         </div>
       </div>
@@ -1397,7 +1063,7 @@ const Index = () => {
               setAddCashierDialog(false);
               setManageCashiersDialog(true);
             }}>
-              Отмена
+              Назад
             </Button>
             <Button onClick={addCashier}>Добавить</Button>
           </DialogFooter>
@@ -1413,83 +1079,64 @@ const Index = () => {
             <div>
               <Label>Bot Token</Label>
               <Input 
-                placeholder="123456789:ABCdefGHIjklMNOpqrsTUVwxyz"
+                placeholder="123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                 value={telegramSettings.botToken} 
                 onChange={(e) => setTelegramSettings({...telegramSettings, botToken: e.target.value})} 
               />
-              <p className="text-xs text-muted-foreground mt-1">
-                Получите токен у @BotFather в Telegram
-              </p>
             </div>
             <div>
               <Label>Chat ID</Label>
               <Input 
-                placeholder="-1001234567890"
+                placeholder="123456789"
                 value={telegramSettings.chatId} 
                 onChange={(e) => setTelegramSettings({...telegramSettings, chatId: e.target.value})} 
               />
-              <p className="text-xs text-muted-foreground mt-1">
-                ID чата или группы для отправки отчётов
-              </p>
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setTelegramSettingsDialog(false)}>
-              Отмена
-            </Button>
+            <Button variant="outline" onClick={() => setTelegramSettingsDialog(false)}>Отмена</Button>
             <Button onClick={saveTelegramSettings}>Сохранить</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
 
       <Dialog open={returnSaleDialog} onOpenChange={setReturnSaleDialog}>
-        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Возврат товара</DialogTitle>
           </DialogHeader>
-          <div className="space-y-3">
-            {sessionStartTime && sales.filter(s => s.timestamp >= sessionStartTime && !s.returned).length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Icon name="Package" size={48} className="mx-auto mb-2 opacity-20" />
+          <div className="space-y-4">
+            {sales.filter(s => !s.returned && sessionStartTime && s.timestamp >= sessionStartTime).reverse().map(sale => (
+              <Card key={sale.id} className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => openReturnDialog(sale)}>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <p className="font-semibold text-lg">{sale.total} ₽</p>
+                      <p className="text-xs text-muted-foreground">
+                        {sale.paymentMethod === 'cash' ? 'Наличные' : 'Карта'} • 
+                        {new Date(sale.timestamp).toLocaleString('ru-RU')}
+                      </p>
+                    </div>
+                    <Button variant="ghost" size="sm">
+                      <Icon name="Undo2" size={16} className="mr-1" />
+                      Вернуть
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {sale.items.map((item, idx) => (
+                      <Badge key={idx} variant="secondary">
+                        {item.image} {item.name} ×{item.quantity}
+                      </Badge>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+            {sales.filter(s => !s.returned && sessionStartTime && s.timestamp >= sessionStartTime).length === 0 && (
+              <div className="p-8 text-center text-muted-foreground">
+                <Icon name="ShoppingBag" size={48} className="mx-auto mb-2 opacity-20" />
                 <p>Нет продаж для возврата</p>
               </div>
-            ) : (
-              sales
-                .filter(s => sessionStartTime && s.timestamp >= sessionStartTime && !s.returned)
-                .reverse()
-                .map(sale => (
-                  <Card key={sale.id} className="p-4">
-                    <div className="flex items-start justify-between mb-3">
-                      <div>
-                        <p className="text-sm text-muted-foreground">
-                          {new Date(sale.timestamp).toLocaleTimeString('ru-RU')}
-                        </p>
-                        <p className="font-semibold text-lg">{sale.total} ₽</p>
-                        <p className="text-xs text-muted-foreground">
-                          {sale.paymentMethod === 'cash' ? 'Наличные' : 'Карта'} • {sale.cashier}
-                        </p>
-                      </div>
-                      <Button 
-                        variant="destructive" 
-                        size="sm"
-                        onClick={() => openReturnDialog(sale)}
-                      >
-                        <Icon name="Undo2" size={16} className="mr-1" />
-                        Вернуть
-                      </Button>
-                    </div>
-                    <div className="space-y-2">
-                      {sale.items.map((item, idx) => (
-                        <div key={idx} className="flex items-center gap-2 text-sm">
-                          <span className="text-lg">{item.image}</span>
-                          <span className="flex-1">{item.name}</span>
-                          <span className="text-muted-foreground">{item.quantity} шт</span>
-                          <span className="font-medium">{item.price * item.quantity} ₽</span>
-                        </div>
-                      ))}
-                    </div>
-                  </Card>
-                ))
             )}
           </div>
         </DialogContent>
