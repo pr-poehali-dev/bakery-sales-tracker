@@ -171,6 +171,7 @@ const Index = () => {
   const [writeOffReason, setWriteOffReason] = useState('');
   const [returningSale, setReturningSale] = useState<Sale | null>(null);
   const [returnReason, setReturnReason] = useState('');
+  const [returnQuantities, setReturnQuantities] = useState<{[key: string]: number}>({});
   const [confirmReturnDialog, setConfirmReturnDialog] = useState(false);
   const [closeShiftDialog, setCloseShiftDialog] = useState(false);
   
@@ -323,11 +324,14 @@ const Index = () => {
         .sort((a, b) => b.salesCount - a.salesCount)
         .slice(0, 5);
 
+      const shiftStart = sessionStartTime ? new Date(sessionStartTime).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) : '-';
+      const shiftEnd = new Date().toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+
       let reportText = `📊 ОТЧЁТ О ПРОДАЖАХ\n\n` +
         `💼 Хлеб Бабушкин\n` +
         `👤 Кассир: ${currentUser?.name}\n` +
         `📅 Дата: ${new Date().toLocaleDateString('ru-RU')}\n` +
-        `⏰ Время: ${new Date().toLocaleTimeString('ru-RU')}\n\n` +
+        `🕐 Смена: ${shiftStart} - ${shiftEnd}\n\n` +
         `━━━━━━━━━━━━━━━━━━━━\n\n` +
         `💰 Выручка за смену: ${sessionRevenue} ₽\n` +
         `   Продажи: ${salesTotal} ₽\n`;
@@ -595,6 +599,11 @@ const Index = () => {
   const openReturnDialog = (sale: Sale) => {
     setReturningSale(sale);
     setReturnReason('');
+    const initialQuantities: {[key: string]: number} = {};
+    sale.items.forEach(item => {
+      initialQuantities[item.id] = item.quantity;
+    });
+    setReturnQuantities(initialQuantities);
     setConfirmReturnDialog(true);
   };
 
@@ -604,23 +613,55 @@ const Index = () => {
       return;
     }
 
+    const hasItemsToReturn = Object.values(returnQuantities).some(q => q > 0);
+    if (!hasItemsToReturn) {
+      toast({ title: 'Выберите товары для возврата', variant: 'destructive' });
+      return;
+    }
+
+    let returnTotal = 0;
+    const returnedItems: typeof returningSale.items = [];
+
     returningSale.items.forEach(item => {
-      setProducts(products.map(p =>
-        p.id === item.id ? { ...p, salesCount: Math.max(0, (p.salesCount || 0) - item.quantity) } : p
-      ));
+      const returnQty = returnQuantities[item.id] || 0;
+      if (returnQty > 0) {
+        returnTotal += item.price * returnQty;
+        returnedItems.push({ ...item, quantity: returnQty });
+        setProducts(products.map(p =>
+          p.id === item.id ? { ...p, salesCount: Math.max(0, (p.salesCount || 0) - returnQty) } : p
+        ));
+      }
     });
 
-    setSales(sales.map(s => 
-      s.id === returningSale.id 
-        ? { ...s, returned: true, returnTimestamp: Date.now(), returnReason: returnReason } 
-        : s
-    ));
+    const allItemsReturned = returningSale.items.every(item => returnQuantities[item.id] === item.quantity);
+
+    if (allItemsReturned) {
+      setSales(sales.map(s => 
+        s.id === returningSale.id 
+          ? { ...s, returned: true, returnTimestamp: Date.now(), returnReason: returnReason } 
+          : s
+      ));
+    } else {
+      const partialReturnSale: Sale = {
+        id: Date.now().toString(),
+        items: returnedItems,
+        total: returnTotal,
+        timestamp: Date.now(),
+        cashier: returningSale.cashier,
+        paymentMethod: returningSale.paymentMethod,
+        returned: true,
+        returnTimestamp: Date.now(),
+        returnReason: returnReason
+      };
+      setSales([...sales, partialReturnSale]);
+    }
     
-    toast({ title: 'Возврат выполнен', description: `Возвращено ${returningSale.total} ₽` });
+    toast({ title: 'Возврат выполнен', description: `Возвращено ${returnTotal} ₽` });
     setConfirmReturnDialog(false);
     setReturnSaleDialog(false);
     setReturningSale(null);
     setReturnReason('');
+    setReturnQuantities({});
   };
 
   const openWriteOffDialog = (product: Product) => {
@@ -1477,12 +1518,29 @@ const Index = () => {
                   {returningSale.paymentMethod === 'cash' ? 'Наличные' : 'Карта'} • 
                   {new Date(returningSale.timestamp).toLocaleString('ru-RU')}
                 </p>
-                <div className="pt-2 border-t space-y-1">
+                <div className="pt-2 border-t space-y-3">
                   {returningSale.items.map((item, idx) => (
-                    <div key={idx} className="flex items-center gap-2 text-sm">
-                      <span>{item.image}</span>
-                      <span className="flex-1">{item.name}</span>
-                      <span className="text-muted-foreground">{item.quantity} шт</span>
+                    <div key={idx} className="space-y-2">
+                      <div className="flex items-center gap-2 text-sm">
+                        <span>{item.image}</span>
+                        <span className="flex-1">{item.name}</span>
+                        <span className="text-muted-foreground">{item.price} ₽</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Label className="text-xs text-muted-foreground">Вернуть:</Label>
+                        <Input 
+                          type="number"
+                          min="0"
+                          max={item.quantity}
+                          value={returnQuantities[item.id] || 0}
+                          onChange={(e) => {
+                            const value = Math.min(Math.max(0, parseInt(e.target.value) || 0), item.quantity);
+                            setReturnQuantities({...returnQuantities, [item.id]: value});
+                          }}
+                          className="w-20 h-8 text-center"
+                        />
+                        <span className="text-xs text-muted-foreground">из {item.quantity} шт</span>
+                      </div>
                     </div>
                   ))}
                 </div>
