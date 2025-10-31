@@ -839,37 +839,38 @@ const Index = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 pb-safe">
       <header className="bg-white border-b sticky top-0 z-50 shadow-sm">
-        <div className="container mx-auto px-4 py-4">
+        <div className="container mx-auto px-4 py-3 md:py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-primary rounded-full flex items-center justify-center">
-                <Icon name="Store" size={24} className="text-white" />
+            <div className="flex items-center gap-2 md:gap-3">
+              <div className="w-10 h-10 md:w-12 md:h-12 bg-primary rounded-full flex items-center justify-center">
+                <Icon name="Store" size={20} className="text-white md:hidden" />
+                <Icon name="Store" size={24} className="text-white hidden md:block" />
               </div>
               <div>
-                <h1 className="text-2xl font-bold">Хлеб Бабушкин</h1>
-                <p className="text-sm text-muted-foreground">{currentUser?.name}</p>
+                <h1 className="text-xl md:text-2xl font-bold">Хлеб Бабушкин</h1>
+                <p className="text-xs md:text-sm text-muted-foreground">{currentUser?.name}</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1 md:gap-2">
               {currentUser?.role === 'admin' && (
                 <>
-                  <Button variant="ghost" size="sm" onClick={() => setAddCategoryDialog(true)}>
-                    <Icon name="FolderPlus" size={16} className="mr-1" />
-                    Категория
+                  <Button variant="ghost" size="sm" onClick={() => setAddCategoryDialog(true)} className="hidden md:flex">
+                    <Icon name="FolderPlus" size={18} className="md:mr-1" />
+                    <span className="hidden lg:inline">Категория</span>
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setAddProductDialog(true)}>
-                    <Icon name="Plus" size={16} className="mr-1" />
-                    Товар
+                  <Button variant="ghost" size="sm" onClick={() => setAddProductDialog(true)} className="hidden md:flex">
+                    <Icon name="Plus" size={18} className="md:mr-1" />
+                    <span className="hidden lg:inline">Товар</span>
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setManageCashiersDialog(true)}>
-                    <Icon name="Users" size={16} className="mr-1" />
-                    Кассиры
+                  <Button variant="ghost" size="sm" onClick={() => setManageCashiersDialog(true)} className="hidden md:flex">
+                    <Icon name="Users" size={18} className="md:mr-1" />
+                    <span className="hidden lg:inline">Кассиры</span>
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setTelegramSettingsDialog(true)}>
-                    <Icon name="Settings" size={16} className="mr-1" />
-                    Telegram
+                  <Button variant="ghost" size="sm" onClick={() => setTelegramSettingsDialog(true)} className="hidden md:flex">
+                    <Icon name="Settings" size={18} className="md:mr-1" />
+                    <span className="hidden lg:inline">Telegram</span>
                   </Button>
                 </>
               )}
@@ -878,17 +879,18 @@ const Index = () => {
                 size="sm" 
                 onClick={sendReportToTelegram}
                 disabled={sendingReport}
+                className="hidden md:flex"
               >
-                <Icon name="Send" size={16} className="mr-1" />
-                {sendingReport ? 'Отправка...' : 'Отчёт в Telegram'}
+                <Icon name="Send" size={18} className="md:mr-1" />
+                <span className="hidden lg:inline">{sendingReport ? 'Отправка...' : 'Отчёт'}</span>
               </Button>
               <Button variant="ghost" size="sm" onClick={() => setReturnSaleDialog(true)}>
-                <Icon name="Undo2" size={16} className="mr-1" />
-                Возврат
+                <Icon name="Undo2" size={20} className="md:mr-1" />
+                <span className="hidden md:inline">Возврат</span>
               </Button>
               <Button variant="ghost" size="sm" onClick={handleCloseShift}>
-                <Icon name="DoorOpen" size={16} className="mr-1" />
-                Закрыть смену
+                <Icon name="DoorOpen" size={20} className="md:mr-1" />
+                <span className="hidden md:inline">Закрыть</span>
               </Button>
             </div>
           </div>
@@ -918,13 +920,13 @@ const Index = () => {
           const cardReturns = returnedSales.filter(s => s.paymentMethod === 'card').reduce((sum, s) => sum + s.total, 0);
           
           return (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 md:gap-4 mb-4 md:mb-6">
               <Card className="bg-gradient-to-br from-primary to-orange-600 text-white">
-                <CardContent className="p-6">
+                <CardContent className="p-4 md:p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm opacity-90 mb-1">Выручка за смену</p>
-                      <p className="text-3xl font-bold">{sessionRevenue} ₽</p>
+                      <p className="text-xs md:text-sm opacity-90 mb-1">Выручка за смену</p>
+                      <p className="text-2xl md:text-3xl font-bold">{sessionRevenue} ₽</p>
                       <div className="text-xs opacity-70 mt-1 space-y-0.5">
                         {returnsTotal > 0 && (
                           <p>Возвраты: -{returnsTotal} ₽</p>
@@ -942,25 +944,25 @@ const Index = () => {
               </Card>
               
               <Card className="bg-gradient-to-br from-blue-500 to-blue-600 text-white">
-                <CardContent className="p-6">
+                <CardContent className="p-4 md:p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm opacity-90 mb-1">Продано товаров</p>
-                      <p className="text-3xl font-bold">{sessionItemsCount} шт</p>
+                      <p className="text-xs md:text-sm opacity-90 mb-1">Продано товаров</p>
+                      <p className="text-2xl md:text-3xl font-bold">{sessionItemsCount} шт</p>
                     </div>
-                    <Icon name="Package" size={40} className="opacity-80" />
+                    <Icon name="Package" size={32} className="opacity-80 md:w-10 md:h-10" />
                   </div>
                 </CardContent>
               </Card>
               
               <Card className="bg-gradient-to-br from-green-500 to-green-600 text-white">
-                <CardContent className="p-6">
+                <CardContent className="p-4 md:p-6">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm opacity-90 mb-1">Количество продаж</p>
-                      <p className="text-3xl font-bold">{sessionSales.length}</p>
+                      <p className="text-xs md:text-sm opacity-90 mb-1">Количество продаж</p>
+                      <p className="text-2xl md:text-3xl font-bold">{sessionSales.length}</p>
                     </div>
-                    <Icon name="ShoppingBag" size={40} className="opacity-80" />
+                    <Icon name="ShoppingBag" size={32} className="opacity-80 md:w-10 md:h-10" />
                   </div>
                 </CardContent>
               </Card>
@@ -968,11 +970,11 @@ const Index = () => {
           );
         })()}
         
-        <div className="grid lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 space-y-6">
+        <div className="grid lg:grid-cols-3 gap-4 md:gap-6">
+          <div className="lg:col-span-2 space-y-4 md:space-y-6">
             <div>
-              <h2 className="text-2xl font-bold mb-4">Категории</h2>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              <h2 className="text-xl md:text-2xl font-bold mb-3 md:mb-4">Категории</h2>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4">
                 {categories.map((category, index) => (
                   <Card
                     key={category.id}
@@ -986,9 +988,9 @@ const Index = () => {
                     onDragOver={(e) => e.preventDefault()}
                     onClick={() => openCategoryDialog(category.id)}
                   >
-                    <CardContent className="p-6 text-center relative">
-                      <div className="text-5xl mb-2">{category.emoji}</div>
-                      <p className="font-semibold">{category.label}</p>
+                    <CardContent className="p-4 md:p-6 text-center relative min-h-[120px] md:min-h-[140px] flex flex-col items-center justify-center">
+                      <div className="text-4xl md:text-5xl mb-2">{category.emoji}</div>
+                      <p className="font-semibold text-sm md:text-base">{category.label}</p>
                       {currentUser?.role === 'admin' && (
                         <Button
                           variant="ghost"
@@ -1088,37 +1090,37 @@ const Index = () => {
               </Button>
             </div>
 
-            <Card className="sticky top-24" ref={cartRef}>
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xl font-bold">{activeCart.name}</h3>
+            <Card className="sticky top-20 md:top-24" ref={cartRef}>
+              <CardContent className="p-4 md:p-6">
+                <div className="flex items-center justify-between mb-3 md:mb-4">
+                  <h3 className="text-lg md:text-xl font-bold">{activeCart.name}</h3>
                   {activeCart.startTime && (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Icon name="Timer" size={16} />
+                    <div className="flex items-center gap-1 md:gap-2 text-xs md:text-sm text-muted-foreground">
+                      <Icon name="Timer" size={14} className="md:w-4 md:h-4" />
                       <span className="font-mono">{formatTime(activeCart.startTime)}</span>
                     </div>
                   )}
                 </div>
-                <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                <div className="space-y-2 md:space-y-3 max-h-[300px] md:max-h-[400px] overflow-y-auto">
                   {activeCart.items.length === 0 ? (
-                    <p className="text-center text-muted-foreground py-8">Корзина пуста</p>
+                    <p className="text-center text-muted-foreground py-6 md:py-8 text-sm md:text-base">Корзина пуста</p>
                   ) : (
                     activeCart.items.map(item => (
-                      <div key={item.id} className="flex gap-3 p-3 border rounded-lg">
-                        <div className="text-3xl">{item.image}</div>
-                        <div className="flex-1">
-                          <h4 className="font-medium text-sm mb-2">{item.name}</h4>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={() => removeFromCart(item.id)}>
-                                <Icon name="Minus" size={12} />
+                      <div key={item.id} className="flex gap-2 md:gap-3 p-3 md:p-3 border rounded-lg">
+                        <div className="text-2xl md:text-3xl">{item.image}</div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-medium text-sm md:text-base mb-2 truncate">{item.name}</h4>
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-1 md:gap-2">
+                              <Button variant="outline" size="sm" className="h-9 w-9 md:h-8 md:w-8 p-0 touch-manipulation" onClick={() => removeFromCart(item.id)}>
+                                <Icon name="Minus" size={16} className="md:w-3 md:h-3" />
                               </Button>
-                              <span className="font-medium w-6 text-center">{item.quantity}</span>
-                              <Button variant="outline" size="sm" className="h-7 w-7 p-0" onClick={(e) => addToCart(item, e as any)}>
-                                <Icon name="Plus" size={12} />
+                              <span className="font-medium w-8 md:w-6 text-center text-sm md:text-base">{item.quantity}</span>
+                              <Button variant="outline" size="sm" className="h-9 w-9 md:h-8 md:w-8 p-0 touch-manipulation" onClick={(e) => addToCart(item, e as any)}>
+                                <Icon name="Plus" size={16} className="md:w-3 md:h-3" />
                               </Button>
                             </div>
-                            <span className="font-bold text-primary">{(item.price * item.quantity)} ₽</span>
+                            <span className="font-bold text-primary text-sm md:text-base whitespace-nowrap">{(item.price * item.quantity)} ₽</span>
                           </div>
                         </div>
                       </div>
@@ -1127,14 +1129,14 @@ const Index = () => {
                 </div>
                 
                 {activeCart.items.length > 0 && (
-                  <div className="mt-6 pt-4 border-t">
-                    <div className="flex justify-between items-center mb-4">
-                      <span className="text-lg font-bold">Итого:</span>
-                      <span className="text-2xl font-bold text-primary">
+                  <div className="mt-4 md:mt-6 pt-3 md:pt-4 border-t">
+                    <div className="flex justify-between items-center mb-3 md:mb-4">
+                      <span className="text-base md:text-lg font-bold">Итого:</span>
+                      <span className="text-xl md:text-2xl font-bold text-primary">
                         {activeCart.items.reduce((sum, item) => sum + (item.price * item.quantity), 0)} ₽
                       </span>
                     </div>
-                    <Button className="w-full" size="lg" onClick={() => setPaymentDialog(true)}>
+                    <Button className="w-full min-h-[56px] md:min-h-[44px] text-base md:text-lg touch-manipulation" size="lg" onClick={() => setPaymentDialog(true)}>
                       <Icon name="CreditCard" size={20} className="mr-2" />
                       Оплатить
                     </Button>
@@ -1147,29 +1149,29 @@ const Index = () => {
       </div>
 
       <Dialog open={categoryDialog} onOpenChange={setCategoryDialog}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+        <DialogContent className="max-w-4xl max-h-[85vh] md:max-h-[80vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="text-2xl">
+            <DialogTitle className="text-xl md:text-2xl">
               {selectedCategoryId && categories.find(c => c.id === selectedCategoryId)?.emoji}{' '}
               {selectedCategoryId && categories.find(c => c.id === selectedCategoryId)?.label}
             </DialogTitle>
           </DialogHeader>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mt-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 md:gap-4 mt-4">
             {filteredProducts.map(product => (
               <Card key={product.id} className="relative group hover:shadow-lg transition-all">
-                <CardContent className="p-4">
-                  <div className="text-center mb-3">
-                    <div className="text-5xl">{product.image}</div>
+                <CardContent className="p-3 md:p-4">
+                  <div className="text-center mb-2 md:mb-3">
+                    <div className="text-4xl md:text-5xl">{product.image}</div>
                   </div>
-                  <h3 className="font-medium text-sm mb-2 min-h-[40px] line-clamp-2">{product.name}</h3>
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-lg font-bold text-primary">{product.price} ₽</span>
+                  <h3 className="font-medium text-xs md:text-sm mb-2 min-h-[32px] md:min-h-[40px] line-clamp-2">{product.name}</h3>
+                  <div className="flex items-center justify-between mb-2 md:mb-3">
+                    <span className="text-base md:text-lg font-bold text-primary">{product.price} ₽</span>
                   </div>
-                  <Button className="w-full mb-2" size="sm" onClick={(e) => {
+                  <Button className="w-full mb-2 min-h-[44px] md:min-h-[36px] touch-manipulation text-sm md:text-base" size="sm" onClick={(e) => {
                     addToCart(product, e);
                     setCategoryDialog(false);
                   }}>
-                    <Icon name="ShoppingCart" size={14} className="mr-1" />
+                    <Icon name="ShoppingCart" size={16} className="mr-1 md:w-3.5 md:h-3.5" />
                     В корзину
                   </Button>
                   
@@ -1205,18 +1207,18 @@ const Index = () => {
       </Dialog>
 
       <Dialog open={paymentDialog} onOpenChange={setPaymentDialog}>
-        <DialogContent>
+        <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Выберите способ оплаты</DialogTitle>
+            <DialogTitle className="text-xl md:text-2xl">Выберите способ оплаты</DialogTitle>
           </DialogHeader>
-          <div className="grid grid-cols-2 gap-4">
-            <Button size="lg" className="h-32 flex-col gap-2" onClick={() => completeSale('cash')}>
-              <Icon name="Wallet" size={32} />
-              <span className="text-lg">Наличные</span>
+          <div className="grid grid-cols-2 gap-3 md:gap-4">
+            <Button size="lg" className="h-40 md:h-32 flex-col gap-3 md:gap-2 touch-manipulation" onClick={() => completeSale('cash')}>
+              <Icon name="Wallet" size={48} className="md:w-8 md:h-8" />
+              <span className="text-xl md:text-lg font-semibold">Наличные</span>
             </Button>
-            <Button size="lg" className="h-32 flex-col gap-2" onClick={() => completeSale('card')}>
-              <Icon name="CreditCard" size={32} />
-              <span className="text-lg">Карта</span>
+            <Button size="lg" className="h-40 md:h-32 flex-col gap-3 md:gap-2 touch-manipulation" onClick={() => completeSale('card')}>
+              <Icon name="CreditCard" size={48} className="md:w-8 md:h-8" />
+              <span className="text-xl md:text-lg font-semibold">Карта</span>
             </Button>
           </div>
         </DialogContent>

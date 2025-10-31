@@ -46,6 +46,17 @@
   body {
     @apply bg-background text-foreground;
     font-family: "Inter", sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+    user-select: none;
+    -webkit-user-select: none;
+    overscroll-behavior: none;
+  }
+
+  input,
+  textarea {
+    user-select: text;
+    -webkit-user-select: text;
   }
 }
 
@@ -88,5 +99,23 @@
   100% {
     transform: translate(var(--x-end), var(--y-end)) scale(0.3);
     opacity: 0;
+  }
+}
+
+@media (hover: none) and (pointer: coarse) {
+  button,
+  .category-card,
+  [role="button"] {
+    min-height: 48px;
+    min-width: 48px;
+  }
+
+  .category-card:active {
+    transform: scale(0.95);
+    transition: transform 0.1s;
+  }
+
+  button:active {
+    transform: scale(0.95);
   }
 }
